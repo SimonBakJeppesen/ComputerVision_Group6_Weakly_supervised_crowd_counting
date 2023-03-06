@@ -1,8 +1,9 @@
-# ComputerVision_Group6_Weakly_supervised_crowd_counting
+# ComputerVision_Group6
+Topic: Weakly_supervised_crowd_counting.
 Code for the Exam project in the course computer vision at Aarhus University, Denmark. Subject: Weakly supervised crowd-counting methods. 
 
 ## Report
-Link to Overleaf: 
+Link to Overleaf: [link](https://www.overleaf.com/read/wkdpbpvzbqvd)
 
 ## Models/Papers
 + CCTrans: Simplifying and Improving Crowd Counting with Transformer (29 Sep 2021) <br />
