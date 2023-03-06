@@ -8,7 +8,7 @@ Link to Overleaf: [link](https://www.overleaf.com/read/wkdpbpvzbqvd)
 ## Models/Papers
 + CCTrans: Simplifying and Improving Crowd Counting with Transformer (29 Sep 2021) <br />
 Paper link: https://paperswithcode.com/paper/cctrans-simplifying-and-improving-crowd <br />
-Github: https://paperswithcode.com/paper/cctrans-simplifying-and-improving-crowd <br />
+Github: https://github.com/wfs123456/CCTrans <br />
 
 + Joint CNN and Transformer Network via weakly supervised Learning for efficient crowd counting (12 Mar 2022) <br />
 Paper link: https://arxiv.org/pdf/2203.06388.pdf <br />
