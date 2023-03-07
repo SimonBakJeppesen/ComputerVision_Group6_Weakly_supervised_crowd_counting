@@ -6,6 +6,9 @@ Code for the Exam project in the course computer vision at Aarhus University, De
 Link to Overleaf: [link](https://www.overleaf.com/read/wkdpbpvzbqvd)
 
 ## Models/Papers
++ Revisiting Crowd Counting: State-of-the-art, Trends, and Future Perspectives (14 Sep 2022) <br />
+Paper: https://arxiv.org/pdf/2209.07271.pdf <br />
+
 + CCTrans: Simplifying and Improving Crowd Counting with Transformer (29 Sep 2021) <br />
 Paper link: https://paperswithcode.com/paper/cctrans-simplifying-and-improving-crowd <br />
 Github: https://github.com/wfs123456/CCTrans <br />
