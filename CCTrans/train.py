@@ -25,7 +25,7 @@ def parse_args():
                         help='the epoch start to val')
     parser.add_argument('--batch-size', type=int, default=16,
                         help='train batch size')
-    parser.add_argument('--device', default='0', help='assign device')
+    parser.add_argument('--device', default='1', help='assign device')
     parser.add_argument('--num-workers', type=int, default=16,
                         help='the num of training process')
     parser.add_argument('--crop-size', type=int, default= 256,
