@@ -31,8 +31,8 @@ def main(args):
         train_file = './npydata/ShanghaiB_train.npy'
         test_file = './npydata/ShanghaiB_test.npy'
     elif args['dataset'] == 'UCF_QNRF':
-        train_file = './npydata/qnrf_train.npy'
-        test_file = './npydata/qnrf_test.npy'
+        train_file = './npydata/UCF_QNRF_train.npy'
+        test_file = './npydata/UCF_QNRF_test.npy'
     elif args['dataset'] == 'JHU':
         train_file = './npydata/jhu_train.npy'
         test_file = './npydata/jhu_val.npy'

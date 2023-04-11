@@ -19,7 +19,7 @@ def load_data(img_path, args, train=True):
             break  # Success!
         except OSError:
             print("load error:", img_path)
-            cv2.waitKey(1000)  # Wait a bit
+            cv2.waitKey(10000)  # Wait a bit
 
     img = img.copy()
     gt_count = gt_count.copy()

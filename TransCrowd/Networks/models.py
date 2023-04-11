@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from timm.models.vision_transformer import VisionTransformer, _cfg
 from timm.models.registry import register_model
 from timm.models.layers import trunc_normal_
+import numpy as np
 
 
 
@@ -28,25 +29,25 @@ class VisionTransformer_token(VisionTransformer):
     def forward_features(self, x):
         B = x.shape[0]
         x = self.patch_embed(x)
-
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
+        
         x = torch.cat((cls_tokens, x), dim=1)
-
         x = x + self.pos_embed
         x = self.pos_drop(x)
-
+    
         for blk in self.blocks:
             x = blk(x)
-
+     
         x = self.norm(x)
+        #torch.save(x, "/home/cv06f23/ComputerVision_Group6_Weakly_supervised_crowd_counting/TransCrowd/tensor.pt")
+        
         return x[:, 0]
 
     def forward(self, x):
         x = self.forward_features(x)
         x = self.head(x)
-
         x = self.output1(x)
-
+       
         return x
 
 

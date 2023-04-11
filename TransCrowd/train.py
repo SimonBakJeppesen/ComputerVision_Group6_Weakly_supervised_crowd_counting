@@ -14,6 +14,7 @@ from nni.utils import merge_parameter
 from config import return_args, args
 import numpy as np
 from image import load_data
+from sklearn.model_selection import KFold
 
 warnings.filterwarnings('ignore')
 import time
@@ -31,8 +32,8 @@ def main(args):
         train_file = './npydata/ShanghaiB_train.npy'
         test_file = './npydata/ShanghaiB_test.npy'
     elif args['dataset'] == 'UCF_QNRF':
-        train_file = './npydata/qnrf_train.npy'
-        test_file = './npydata/qnrf_test.npy'
+        train_file = './npydata/UCF_QNRF_train.npy'
+        test_file = './npydata/UCF_QNRF_test.npy'
     elif args['dataset'] == 'JHU':
         train_file = './npydata/jhu_train.npy'
         test_file = './npydata/jhu_val.npy'
@@ -87,6 +88,7 @@ def main(args):
     print(args['best_pred'], args['start_epoch'])
     train_data = pre_data(train_list, args, train=True)
     test_data = pre_data(val_list, args, train=False)
+    print(len(val_list)
 
     for epoch in range(args['start_epoch'], args['epochs']):
 

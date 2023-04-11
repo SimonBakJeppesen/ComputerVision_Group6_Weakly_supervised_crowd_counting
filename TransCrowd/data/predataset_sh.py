@@ -11,12 +11,12 @@ from scipy.ndimage.filters import gaussian_filter
 import random
 
 '''set your data path'''
-root = '/home/dkliang/projects/synchronous/dataset/ShanghaiTech/'
+root = '/home/cv06f23/Dataset/ShanghaiTech/ShanghaiTech/'
 
-part_A_train = os.path.join(root, 'part_A_final/train_data', 'images')
-part_A_test = os.path.join(root, 'part_A_final/test_data', 'images')
-part_B_train = os.path.join(root, 'part_B_final/train_data', 'images')
-part_B_test = os.path.join(root, 'part_B_final/test_data', 'images')
+part_A_train = os.path.join(root, 'part_A/train_data', 'images')
+part_A_test = os.path.join(root, 'part_A/test_data', 'images')
+part_B_train = os.path.join(root, 'part_B/train_data', 'images')
+part_B_test = os.path.join(root, 'part_B/test_data', 'images')
 
 path_sets = [part_A_train, part_A_test, part_B_train, part_B_test]
 
@@ -62,7 +62,7 @@ for img_path in img_paths:
 
     Img_data = cv2.imread(img_path)
 
-    mat = io.loadmat(img_path.replace('.jpg', '.mat').replace('images', 'ground_truth').replace('IMG_', 'GT_IMG_'))
+    mat = io.loadmat(img_path.replace('.jpg', '.mat').replace('images', 'ground-truth').replace('IMG_', 'GT_IMG_'))
     Gt_data = mat["image_info"][0][0][0][0][0]
 
     rate = 1
