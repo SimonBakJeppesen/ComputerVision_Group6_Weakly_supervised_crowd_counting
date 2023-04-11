@@ -10,7 +10,7 @@ from datetime import datetime
 import torch.nn.functional as F
 from datasets.crowd import Crowd_qnrf, Crowd_nwpu, Crowd_sh, CustomDataset
 
-# from models import vgg19
+#from models import vgg19
 from Networks import ALTGVT
 from losses.ot_loss import OT_Loss
 from utils.pytorch_utils import Save_Handle, AverageMeter
@@ -125,6 +125,7 @@ class Trainer(object):
         self.optimizer = optim.AdamW(
             self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
         )
+        #OBS!!!! Implement scheduler here
         self.start_epoch = 0
 
         # check if wandb has to log
@@ -150,7 +151,8 @@ class Trainer(object):
                     torch.load(args.resume, self.device))
         else:
             self.logger.info("random initialization")
-
+        
+        
         self.ot_loss = OT_Loss(
             args.crop_size,
             downsample_ratio,
@@ -159,9 +161,12 @@ class Trainer(object):
             args.num_of_iter_in_ot,
             args.reg,
         )
-        self.tv_loss = nn.L1Loss(reduction="none").to(self.device)
+        
+
+        self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          # Maybe uncommen
         self.mse = nn.MSELoss().to(self.device)
-        self.mae = nn.L1Loss().to(self.device)
+        self.mae = nn.L1Loss().to(self.device)                              # 
+        self.smoothL1 = nn.SmoothL1Loss(beta=self.args.beta).to(self.device)
         self.save_list = Save_Handle(max_num=1)
         self.best_mae = np.inf
         self.best_mse = np.inf
@@ -201,6 +206,8 @@ class Trainer(object):
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
                 # Compute OT loss.
+                #ot_loss = 0 #Delete this and uncomment below for original code
+                '''
                 ot_loss, wd, ot_obj_value = self.ot_loss(
                     outputs_normed, outputs, points
                 )
@@ -209,14 +216,25 @@ class Trainer(object):
                 epoch_ot_loss.update(ot_loss.item(), N)
                 epoch_ot_obj_value.update(ot_obj_value.item(), N)
                 epoch_wd.update(wd, N)
-
+                '''
+                '''
                 # Compute counting loss.
                 count_loss = self.mae(
                     outputs.sum(1).sum(1).sum(1),
                     torch.from_numpy(gd_count).float().to(self.device),
                 )
+                '''
+                
+                # insert Smooth l1
+                count_loss = self.smoothL1(
+                    outputs.sum(1).sum(1).sum(1),
+                    torch.from_numpy(gd_count).float().to(self.device),
+                )
+                
                 epoch_count_loss.update(count_loss.item(), N)
-
+                
+                #tv_loss = 0 #Delete this and uncomment below for original code
+                '''
                 # Compute TV loss.
                 gd_count_tensor = (
                     torch.from_numpy(gd_count)
@@ -235,8 +253,9 @@ class Trainer(object):
                     * torch.from_numpy(gd_count).float().to(self.device)
                 ).mean(0) * self.args.wtv
                 epoch_tv_loss.update(tv_loss.item(), N)
+                '''
 
-                loss = ot_loss + count_loss + tv_loss
+                loss = count_loss #+ ot_loss + tv_loss   # add this again for original code
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -256,22 +275,22 @@ class Trainer(object):
                     {
                         "train/TOTAL_loss": loss,
                         "train/count_loss": count_loss,
-                        "train/tv_loss": tv_loss,
+                        #"train/tv_loss": tv_loss,
                         "train/pred_err": pred_err,
                     },
                     step=self.epoch,
                 )
 
         self.logger.info(
-            "Epoch {} Train, Loss: {:.2f}, OT Loss: {:.2e}, Wass Distance: {:.2f}, OT obj value: {:.2f}, "
-            "Count Loss: {:.2f}, TV Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
+            "Epoch {} Train, Loss: {:.2f}, Wass Distance: {:.2f}, "
+            "Count Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
                 self.epoch,
                 epoch_loss.get_avg(),
-                epoch_ot_loss.get_avg(),
+                #epoch_ot_loss.get_avg(),
                 epoch_wd.get_avg(),
-                epoch_ot_obj_value.get_avg(),
+                #epoch_ot_obj_value.get_avg(),
                 epoch_count_loss.get_avg(),
-                epoch_tv_loss.get_avg(),
+                #epoch_tv_loss.get_avg(),
                 np.sqrt(epoch_mse.get_avg()),
                 epoch_mae.get_avg(),
                 time.time() - epoch_start,
@@ -375,8 +394,7 @@ class Trainer(object):
             )
             print("Saving best model at {} epoch".format(self.epoch))
             model_path = os.path.join(
-                self.save_dir, "best_model_mae-{:.2f}_epoch-{}.pth".format(
-                    self.best_mae, self.epoch)
+                self.save_dir, "best_model.pth"
             )
             torch.save(
                 model_state_dic,

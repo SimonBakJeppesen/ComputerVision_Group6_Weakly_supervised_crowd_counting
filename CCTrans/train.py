@@ -9,29 +9,30 @@ def str2bool(v):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train')
-    parser.add_argument('--data-dir', default='/home/hdd/dataset_xzw/ShanghaiTech/part_A_final', help='data path')
-    parser.add_argument('--dataset', default='sha', help='dataset name: qnrf, nwpu, sha, shb, custom')
+    parser.add_argument('--data-dir', default='/home/cv06f23/Dataset/ShanghaiTech/ShanghaiTech/part_B', help='data path')
+    parser.add_argument('--dataset', default='shb', help='dataset name: qnrf, nwpu, sha, shb, custom')
     parser.add_argument('--lr', type=float, default=1e-5,
                         help='the initial learning rate')
     parser.add_argument('--weight-decay', type=float, default=1e-4,
                         help='the weight decay')
-    parser.add_argument('--resume', default='', type=str,
+    parser.add_argument('--resume', default='./ckpts/ALTGVT/CCTrans_12-1-input-512_wot-0.1_wtv-0.01_reg-10.0_nIter-100_normCood-0/332_ckpt.tar', type=str,
                         help='the path of resume training model')
-    parser.add_argument('--max-epoch', type=int, default=4000,
+    parser.add_argument('--max-epoch', type=int, default=2000,
                         help='max training epoch')
     parser.add_argument('--val-epoch', type=int, default=1,
                         help='the num of steps to log training information')
     parser.add_argument('--val-start', type=int, default=0,
                         help='the epoch start to val')
-    parser.add_argument('--batch-size', type=int, default=16,
+    parser.add_argument('--batch-size', type=int, default=5,
                         help='train batch size')
-    parser.add_argument('--device', default='1', help='assign device')
+    parser.add_argument('--device', default='0', help='assign device')
     parser.add_argument('--num-workers', type=int, default=16,
                         help='the num of training process')
-    parser.add_argument('--crop-size', type=int, default= 256,
+    parser.add_argument('--crop-size', type=int, default= 512,
                         help='the crop size of the train image')
     parser.add_argument('--wot', type=float, default=0.1, help='weight on OT loss')
     parser.add_argument('--wtv', type=float, default=0.01, help='weight on TV loss')
+    parser.add_argument('--beta', type=float, default=12.0, help='Beta value of the smooth L1 loss')
     parser.add_argument('--reg', type=float, default=10.0,
                         help='entropy regularization in sinkhorn')
     parser.add_argument('--num-of-iter-in-ot', type=int, default=100,
@@ -63,6 +64,6 @@ if __name__ == '__main__':
     args = parse_args()
     torch.backends.cudnn.benchmark = True
     os.environ['CUDA_VISIBLE_DEVICES'] = args.device.strip()  # set vis gpu
-    trainer = Trainer(args)                                   # setup trainer object
+    trainer = Trainer(args)
     trainer.setup()
     trainer.train()

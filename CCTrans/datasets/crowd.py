@@ -188,7 +188,7 @@ class Crowd_sh(Base):
             return self.train_transform(img, keypoints)
         elif self.method == 'val':
             wd, ht = img.size
-            st_size = 1.0 * min(wd, ht)
+            st_size = 1.0 * min(wd, ht)             
             if st_size < self.c_size:
                 rr = 1.0 * self.c_size / st_size
                 wd = round(wd * rr)

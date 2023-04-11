@@ -49,7 +49,7 @@ def vis(args):
                 "UCF-QNRF-Nor", "UCF-QNRF"))
         points = mat["annPoints"]
     else:
-        mat = io.loadmat(image_path.replace('.jpg', '.mat').replace('images', 'ground_truth').replace("IMG", "GT_IMG"))
+        mat = io.loadmat(image_path.replace('.jpg', '.mat').replace('images', 'ground-truth').replace("IMG", "GT_IMG"))
         points = mat["image_info"][0, 0][0, 0][0]
 
     gt_count = len(points)
@@ -123,7 +123,7 @@ def vis(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--device', default='0', help='assign device')
+    parser.add_argument('--device', default='1', help='assign device')
     parser.add_argument("--image_path", type=str, required=True,
                         help="the image path to be detected.")
     parser.add_argument("--weight_path", type=str, required=True,
