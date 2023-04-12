@@ -1,3 +1,4 @@
+#test and save
 from __future__ import division
 import warnings
 from Networks.models import base_patch16_384_token, base_patch16_384_gap
