@@ -16,7 +16,7 @@ def parse_args():
                         help='the initial learning rate')
     parser.add_argument('--weight-decay', type=float, default=1e-4,
                         help='the weight decay')
-    parser.add_argument('--resume', default='./ckpts/ALTGVT/CCTrans_12-1-input-512_wot-0.1_wtv-0.01_reg-10.0_nIter-100_normCood-0/332_ckpt.tar', type=str,
+    parser.add_argument('--resume', default='', type=str,
                         help='the path of resume training model')
     parser.add_argument('--max-epoch', type=int, default=2000,
                         help='max training epoch')

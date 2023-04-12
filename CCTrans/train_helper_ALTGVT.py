@@ -125,8 +125,13 @@ class Trainer(object):
         self.optimizer = optim.AdamW(
             self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
         )
-        #OBS!!!! Implement scheduler here
+         #OBS!!!! Implement scheduler here
+        self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[100, 200, 300, 400], gamma=0.5, last_epoch=-1)
+       
+        
+        
         self.start_epoch = 0
+        
 
         # check if wandb has to log
         if args.wandb:
@@ -280,7 +285,7 @@ class Trainer(object):
                     },
                     step=self.epoch,
                 )
-
+        self.scheduler.step()
         self.logger.info(
             "Epoch {} Train, Loss: {:.2f}, Wass Distance: {:.2f}, "
             "Count Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
@@ -296,9 +301,12 @@ class Trainer(object):
                 time.time() - epoch_start,
             )
         )
+        
+        #save ckpt file
         model_state_dic = self.model.state_dict()
         save_path = os.path.join(
             self.save_dir, "{}_ckpt.tar".format(self.epoch))
+        '''
         torch.save(
             {
                 "epoch": self.epoch,
@@ -307,6 +315,7 @@ class Trainer(object):
             },
             save_path,
         )
+        '''
         self.save_list.append(save_path)
 
     def val_epoch(self):
