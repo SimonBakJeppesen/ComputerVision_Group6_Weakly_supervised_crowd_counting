@@ -48,9 +48,8 @@ def main(args):
     print(len(train_list))
     
     train_data = pre_data(train_list, args, train=True)
-    #print('Type of pre_data: ',type(train_data))
-    #print(train_data[0])
-    kfold = KFold(n_splits=5, shuffle=True)
+    
+    kfold = KFold(n_splits=5, shuffle=True, random_state=45) #same 'random' split each time, so continuable if crash
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args['gpu_id']
     
@@ -102,7 +101,7 @@ def main(args):
             ], lr=args['lr'], weight_decay=args['weight_decay'])
         
         #After epoch 300 lr is timed by gamma
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[300], gamma=0.1, last_epoch=-1) 
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100,200,300], gamma=0.1, last_epoch=-1) 
 
         # args['save_path'] = args['save_path'] + str(args['rdt'])
         print(args['save_path'])
@@ -148,7 +147,7 @@ def main(args):
                     }, is_best, args['save_path'], fold='fold{}_'.format(fold))
                 except:
                     print('Warning: No checkpoint was saved')
-
+                
 
 
 
