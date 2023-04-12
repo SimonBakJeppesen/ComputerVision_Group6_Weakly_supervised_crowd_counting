@@ -1,2 +1,4 @@
-CCTrans/ckpts
+CCTrans/ckpts/
+TransCrowd/save_file/
 CCTrans/model_weights
+TransCrowd/Networks/deit_base_patch16_384-8de9b5d1.pth
