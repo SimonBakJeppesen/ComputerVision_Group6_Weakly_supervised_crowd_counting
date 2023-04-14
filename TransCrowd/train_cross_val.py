@@ -50,12 +50,19 @@ def main(args):
     train_data = pre_data(train_list, args, train=True)
     
     kfold = KFold(n_splits=5, shuffle=True, random_state=45) #same 'random' split each time, so continuable if crash
+    init_lr = args['lr']
+    init_best_pred = args['best_pred']
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args['gpu_id']
     
     for fold, (train_ids, val_ids) in enumerate(kfold.split(train_data)):
         fold += 1
+        if fold in [1,2,3,4]:
+            continue
+        
         print('Beginning {} fold'.format(fold))
+        args['lr'] = init_lr
+        args['best_pred'] = init_best_pred
         
         train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)
         val_subsampler = torch.utils.data.SubsetRandomSampler(val_ids)

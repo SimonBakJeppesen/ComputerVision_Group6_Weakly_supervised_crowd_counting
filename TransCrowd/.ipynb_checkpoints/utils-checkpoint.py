@@ -1,13 +1,12 @@
-
 import torch
 import shutil
 import numpy as np
 import random
             
-def save_checkpoint(state,is_best, task_id, filename='checkpoint.pth', fold=''):
-    torch.save(state, './'+str(task_id)+'/'+filename)
+def save_checkpoint(state,is_best, task_id, filename='checkpoint.pth', fold=''):    
     if is_best:
-        shutil.copyfile('./'+str(task_id)+'/'+filename, './'+str(task_id)+'/'+fold+'model_best.pth')
+        torch.save(state, './'+str(task_id)+'/'+fold+'model_best.pth') #filename) #Move this line outside if for original code
+        #shutil.copyfile('./'+str(task_id)+'/'+filename, './'+str(task_id)+'/'+fold+'model_best.pth')
 
 
 def setup_seed(seed):

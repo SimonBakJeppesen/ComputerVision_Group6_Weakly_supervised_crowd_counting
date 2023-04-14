@@ -32,7 +32,7 @@ parser.add_argument('--weight_decay', type=float, default=4 * 1e-4,
                     help='weight decay')
 parser.add_argument('--momentum', type=float, default=0.95,
                     help='momentum')
-parser.add_argument('--epochs', type=int, default=500,
+parser.add_argument('--epochs', type=int, default=240,
                     help='number of epochs to train')
 parser.add_argument('--seed', type=int, default=1,
                     help='random seed')
