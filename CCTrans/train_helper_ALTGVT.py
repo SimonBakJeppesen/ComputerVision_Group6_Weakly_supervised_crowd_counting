@@ -126,7 +126,7 @@ class Trainer(object):
             self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
         )
          #OBS!!!! Implement scheduler here
-        self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[100, 200, 300, 400], gamma=0.5, last_epoch=-1)
+        self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[100, 200, 300, 400], gamma=0.8, last_epoch=-1)
        
         
         
@@ -168,7 +168,7 @@ class Trainer(object):
         )
         
 
-        self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          # Maybe uncommen
+        self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          #
         self.mse = nn.MSELoss().to(self.device)
         self.mae = nn.L1Loss().to(self.device)                              # 
         self.smoothL1 = nn.SmoothL1Loss(beta=self.args.beta).to(self.device)
