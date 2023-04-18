@@ -2,6 +2,6 @@ CCTrans/ckpts/
 TransCrowd/save_file/
 CCTrans/model_weights
 TransCrowd/Networks/deit_base_patch16_384-8de9b5d1.pth
-TransCrowd/.ipynb_checkpoints
-TransCrowd/__pycache__
+TransCrowd/.ipynb_checkpoints/
+TransCrowd/__pycache__/
 TransCrowd/.DS_Store

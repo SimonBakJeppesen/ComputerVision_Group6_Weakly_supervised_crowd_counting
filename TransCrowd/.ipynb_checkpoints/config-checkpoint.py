@@ -11,7 +11,7 @@ parser.add_argument('--save_path', type=str, default='./save_file/ShanghaiA',
 
 parser.add_argument('--workers', type=int, default=16,
                     help='load data workers')
-parser.add_argument('--print_freq', type=int, default=30,
+parser.add_argument('--print_freq', type=int, default=200,
                     help='print frequency')
 parser.add_argument('--start_epoch', type=int, default=0,
                     help='start epoch for training')
@@ -32,7 +32,7 @@ parser.add_argument('--weight_decay', type=float, default=4 * 1e-4,
                     help='weight decay')
 parser.add_argument('--momentum', type=float, default=0.95,
                     help='momentum')
-parser.add_argument('--epochs', type=int, default=240,
+parser.add_argument('--epochs', type=int, default=500,
                     help='number of epochs to train')
 parser.add_argument('--seed', type=int, default=1,
                     help='random seed')

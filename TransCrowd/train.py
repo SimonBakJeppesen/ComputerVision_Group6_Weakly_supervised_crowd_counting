@@ -14,7 +14,7 @@ from nni.utils import merge_parameter
 from config import return_args, args
 import numpy as np
 from image import load_data
-from sklearn.model_selection import KFold
+import traceback
 
 warnings.filterwarnings('ignore')
 import time
@@ -27,23 +27,23 @@ logger = logging.getLogger('mnist_AutoML')
 def main(args):
     if args['dataset'] == 'ShanghaiA':
         train_file = './npydata/ShanghaiA_train.npy'
-        test_file = './npydata/ShanghaiA_test.npy'
+        val_file = './npydata/ShanghaiA_test.npy'
     elif args['dataset'] == 'ShanghaiB':
         train_file = './npydata/ShanghaiB_train.npy'
-        test_file = './npydata/ShanghaiB_test.npy'
+        val_file = './npydata/ShanghaiB_test.npy'
     elif args['dataset'] == 'UCF_QNRF':
-        train_file = './npydata/UCF_QNRF_train.npy'
-        test_file = './npydata/UCF_QNRF_test.npy'
+        train_file = './npydata/qnrf_train.npy'
+        val_file = './npydata/qnrf_test.npy'
     elif args['dataset'] == 'JHU':
-        train_file = './npydata/jhu_train.npy'
-        test_file = './npydata/jhu_val.npy'
+        train_file = './npydata/JHU_train.npy'
+        val_file = './npydata/JHU_val.npy'
     elif args['dataset'] == 'NWPU':
         train_file = './npydata/nwpu_train.npy'
-        test_file = './npydata/nwpu_val.npy'
+        val_file = './npydata/nwpu_val.npy'
 
     with open(train_file, 'rb') as outfile:
         train_list = np.load(outfile).tolist()
-    with open(test_file, 'rb') as outfile:
+    with open(val_file, 'rb') as outfile:
         val_list = np.load(outfile).tolist()
 
     print(len(train_list), len(val_list))
@@ -87,8 +87,7 @@ def main(args):
 
     print(args['best_pred'], args['start_epoch'])
     train_data = pre_data(train_list, args, train=True)
-    test_data = pre_data(val_list, args, train=False)
-    print(len(val_list)
+    val_data = pre_data(val_list, args, train=False)
 
     for epoch in range(args['start_epoch'], args['epochs']):
 
@@ -96,14 +95,16 @@ def main(args):
         train(train_data, model, criterion, optimizer, epoch, args, scheduler)
         end1 = time.time()
 
-        if epoch % 5 == 0 and epoch >= 10:
-            prec1 = validate(test_data, model, args)
+        if epoch % 1 == 0 and epoch >= 1:
+            prec1 = validate(val_data, model, args)
             end2 = time.time()
             is_best = prec1 < args['best_pred']
             args['best_pred'] = min(prec1, args['best_pred'])
 
             print(' * best MAE {mae:.3f} '.format(mae=args['best_pred']), args['save_path'], end1 - start, end2 - end1)
-
+            with open(args['save_path']+'/val.txt', 'a') as f:
+                    f.write('Epoch {}, MAE {}, BestMAE {}\n'.format(epoch, prec1, args['best_pred']))
+                    
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args['pre'],
@@ -155,9 +156,9 @@ def train(Pre_data, model, criterion, optimizer, epoch, args, scheduler):
                             batch_size=args['batch_size'],
                             num_workers=args['workers'],
                             args=args),
-        batch_size=args['batch_size'], drop_last=False)
+        batch_size=args['batch_size'], num_workers=args['workers'])
     args['lr'] = optimizer.param_groups[0]['lr']
-    print('epoch %d, processed %d samples, lr %.10f' % (epoch, epoch * len(train_loader.dataset), args['lr']))
+    print('epoch %d, processed %d samples, lr %.10f' % (epoch, len(train_loader.dataset), args['lr']))
 
     model.train()
     end = time.time()
@@ -268,5 +269,9 @@ if __name__ == '__main__':
     logger.debug(tuner_params)
     params = vars(merge_parameter(return_args, tuner_params))
     print(params)
-
-    main(params)
+    
+    try:
+        main(params)
+    except Exception:
+        with open('error_message.txt', 'w') as f:
+            traceback.print_exc(file=f)
