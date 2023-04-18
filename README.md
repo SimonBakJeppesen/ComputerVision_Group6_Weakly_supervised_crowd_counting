@@ -3,22 +3,21 @@ Topic: Weakly_supervised_crowd_counting.
 Code for the Exam project in the course computer vision at Aarhus University, Denmark. Subject: Weakly supervised crowd-counting methods. 
 
 ## Report
-Link to Overleaf: [link](https://www.overleaf.com/read/wkdpbpvzbqvd)
+Link to Overleaf: [link]()
 
 ## Models/Papers
-+ Revisiting Crowd Counting: State-of-the-art, Trends, and Future Perspectives (14 Sep 2022) <br />
-Paper: https://arxiv.org/pdf/2209.07271.pdf <br />
++ Towards using count-level weak supervision for crowd counting (January 2021) <br />
 
-+ CCTrans: Simplifying and Improving Crowd Counting with Transformer (29 Sep 2021) <br />
-Paper link: https://paperswithcode.com/paper/cctrans-simplifying-and-improving-crowd <br />
++ TransCrowd: weakly-supervised crowd counting with transformers (26 April 2022) <br />
+Github: https://github.com/dk-liang/TransCrowd <br />
+
++ CCTrans: Simplifying and Improving Crowd Counting with Transformer (not published 29 Sep 2021) <br />
 Github: https://github.com/wfs123456/CCTrans <br />
 
-+ Joint CNN and Transformer Network via weakly supervised Learning for efficient crowd counting (12 Mar 2022) <br />
-Paper link: https://arxiv.org/pdf/2203.06388.pdf <br />
-Github: <br />
++ Dynamic Mixture of Counter Network for Location-Agnostic Crowd Counting (IEEE 02 January 2023) <br />
 
 ## Datasets
-+ ShanghaiTech Part A and Part B: (https://www.kaggle.com/datasets/tthien/shanghaitech)
++ ShanghaiTech Part A and Part B: (https://www.kaggle.com/datasets/tthien/shanghaitech)<br />
   Part A: <br />
   Number of images:       482 <br />
   Number of Annotations:  241,677 <br />
@@ -32,13 +31,3 @@ Github: <br />
   Number of images:       1,535 <br />
   Number of Annotations:  1,251,642 <br />
   Avage Count per image:  815 <br />
-
-+ UCF-CC-50: (https://www.crcv.ucf.edu/data/ucf-cc-50/) <br />
-  Number of images:       50 <br />
-  Number of Annotations:  63,974 <br />
-  Avage Count per image:  1279 <br />
-
-+ NWPU-Crowd can be downloaded at: (https://www.crowdbenchmark.com/nwpucrowd.html) <br />
-  Number of images:       5,109 <br />
-  Number of Annotations:  2,133,375 <br />
-  Avage Count per image:  418 <br />
