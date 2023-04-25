@@ -199,7 +199,6 @@ def validate(Pre_data, model, args):
     index = 0
 
     for i, (fname, img, gt_count) in enumerate(test_loader):
-
         img = img.cuda()
         if len(img.shape) == 5:
             img = img.squeeze(0)
@@ -214,7 +213,7 @@ def validate(Pre_data, model, args):
         mae += abs(gt_count - count)
         mse += abs(gt_count - count) * abs(gt_count - count)
 
-        if i % 15 == 0:
+        if i % 1 == 0:
             print('{fname} Gt {gt:.2f} Pred {pred}'.format(fname=fname[0], gt=gt_count, pred=count))
 
     mae = mae * 1.0 / (len(test_loader) * batch_size)

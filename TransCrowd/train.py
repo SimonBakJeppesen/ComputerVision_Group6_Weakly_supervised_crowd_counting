@@ -46,7 +46,6 @@ def main(args):
     with open(val_file, 'rb') as outfile:
         val_list = np.load(outfile).tolist()
 
-    print(len(train_list), len(val_list))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args['gpu_id']
 

@@ -70,6 +70,7 @@ class listDataset(Dataset):
 
             m = int(width / 384)
             n = int(height / 384)
+         
             for i in range(0, m):
                 for j in range(0, n):
 
@@ -77,6 +78,6 @@ class listDataset(Dataset):
                         img_return = img[:, j * 384: 384 * (j + 1), i * 384:(i + 1) * 384].cuda().unsqueeze(0)
                     else:
                         crop_img = img[:, j * 384: 384 * (j + 1), i * 384:(i + 1) * 384].cuda().unsqueeze(0)
-
                         img_return = torch.cat([img_return, crop_img], 0).cuda()
+                        
             return fname, img_return, gt_count
