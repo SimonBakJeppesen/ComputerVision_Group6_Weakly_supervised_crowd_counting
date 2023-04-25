@@ -23,16 +23,17 @@ def cal_new_tensor(img_tensor, min_size=256):
     return img_tensor
 
 parser = argparse.ArgumentParser(description='Test ')
-parser.add_argument('--device', default='0', help='assign device')
+parser.add_argument('--device', default='1', help='assign device')
 parser.add_argument('--batch-size', type=int, default=1,
                         help='train batch size')
-parser.add_argument('--crop-size', type=int, default=512,
+parser.add_argument('--crop-size', type=int, default=256,
                     help='the crop size of the train image')
 parser.add_argument('--model-path', type=str, required=True,
                     help='saved model path')
 parser.add_argument('--data-path', type=str,
                     help='dataset path')
-parser.add_argument('--dataset', type=str, default='shb',
+
+parser.add_argument('--dataset', type=str, default='sha',
                     help='dataset name: qnrf, nwpu, sha, shb, custom')
 parser.add_argument('--pred-density-map-path', type=str, default='inference_results',
                     help='save predicted density maps when pred-density-map-path is not empty.')
