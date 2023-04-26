@@ -181,7 +181,7 @@ class Trainer(object):
             )
             
             #OBS!!!! Implement scheduler here
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[250, 500, 750], gamma=0.5, last_epoch=-1)
+            #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[250, 500, 750], gamma=0.5, last_epoch=-1)
             
             train_dataset = Subset(self.datasets["train"],train_part)
             val_dataset = Subset(self.datasets["train"],val_part)
@@ -316,7 +316,7 @@ class Trainer(object):
                     },
                     step=self.epoch,
                 )
-        self.scheduler.step()
+        #self.scheduler.step()
         self.logger.info(
             "Epoch {} Train, Loss: {:.2f}, Wass Distance: {:.2f}, "
             "Count Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
@@ -362,6 +362,7 @@ class Trainer(object):
                 inputs = inputs.to(self.device)
                 gd_count_val = np.array([len(p) for p in points], dtype=np.float32)    
                 
+                '''
                 crop_imgs, crop_masks = [], []
                 b, c, h, w = inputs.size()
                 rh, rw = args.crop_size, args.crop_size
@@ -376,7 +377,8 @@ class Trainer(object):
                 crop_imgs, crop_masks = map(
                     lambda x: torch.cat(x, dim=0), (crop_imgs, crop_masks)
                 )
-
+                '''
+                '''
                 crop_preds = []
                 nz, bz = crop_imgs.size(0), args.batch_size
                 for i in range(0, nz, bz):
@@ -396,7 +398,10 @@ class Trainer(object):
 
                     crop_preds.append(crop_pred)
                 crop_preds = torch.cat(crop_preds, dim=0)
-
+                '''
+                     
+                outputs, outputs_normed = self.model(inputs)
+                '''
                 # splice them to the original size
                 idx = 0
                 pred_map = torch.zeros([b, 1, h, w]).to(self.device)
@@ -407,18 +412,14 @@ class Trainer(object):
                         pred_map[:, :, gis:gie, gjs:gje] += crop_preds[idx]
                         idx += 1
                 # for the overlapping area, compute average value
+                
                 mask = crop_masks.sum(dim=0).unsqueeze(0)
                 outputs = pred_map / mask
+                '''
                 
-                res = gd_count_val - torch.sum(outputs).item()      # TO DO
-                print("gt_count")
-                print(type(gd_count_val))
-                print(gd_count_val)
-                print("output")
-                print(type(torch.sum(outputs).item()))
-                print(torch.sum(outputs).item())
+                res = gd_count_val - torch.sum(outputs).item()      # TO See
                 epoch_res.append(res)
-                print(res)
+               
              
         epoch_res = np.array(epoch_res)
         mse = np.sqrt(np.mean(np.square(epoch_res)))
