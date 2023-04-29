@@ -92,7 +92,7 @@ class Trainer(object):
                     "train",
                 ),
                 "val": Crowd_sh(
-                    os.path.join(args.data_dir, "test_data"),
+                    os.path.join(args.data_dir, "train_data"),
                     args.crop_size,
                     downsample_ratio,
                     "val",
@@ -110,8 +110,7 @@ class Trainer(object):
         else:
             raise NotImplementedError
        
-       
-        
+
         self.start_epoch = 0
         
         # check if wandb has to log
@@ -161,11 +160,13 @@ class Trainer(object):
         args = self.args
         kfold = KFold(n_splits=5, shuffle=True, random_state=45)            # Kfold
         
-        
-        for self.fold, (train_part, val_part) in enumerate(kfold.split(self.datasets["train"])):
+        for self.fold, (self.train_part, self.val_part) in enumerate(kfold.split(self.datasets["train"])):
             self.fold += 1
             if self.fold in [6]:
                 continue
+            
+            print(self.train_part)
+            print(self.val_part)
             
             self.start_epoch = 0
             
@@ -181,30 +182,8 @@ class Trainer(object):
             )
             
             #OBS!!!! Implement scheduler here
-            #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[250, 500, 750], gamma=0.5, last_epoch=-1)
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[1000], gamma=0.3, last_epoch=-1)
             
-            train_dataset = Subset(self.datasets["train"],train_part)
-            val_dataset = Subset(self.datasets["train"],val_part)
-            
-            self.dataloaderTrain = DataLoader(
-                train_dataset,
-                collate_fn=(train_collate),
-                batch_size=(self.args.batch_size),
-                shuffle=(True),
-                num_workers=self.args.num_workers * self.device_count,
-                pin_memory=(True),
-            )
-            
-            self.dataloaderVal = DataLoader(
-                val_dataset,
-                collate_fn=(default_collate),
-                batch_size=(1),
-                shuffle=(False),
-                num_workers=self.args.num_workers * self.device_count,
-                pin_memory=(False),
-            )
-            
- 
             self.best_mae = np.inf
             self.best_mse = np.inf
 
@@ -231,6 +210,31 @@ class Trainer(object):
         epoch_mse = AverageMeter()
         epoch_start = time.time()
         self.model.train()  # Set model to training mode
+        
+        train_dataset = Subset(self.datasets["train"],self.train_part)
+        val_dataset = Subset(self.datasets["val"],self.val_part)
+            
+        #print('train_dataset')
+        #print(len(train_dataset))
+        #print(len(val_dataset))
+            
+        self.dataloaderTrain = DataLoader(
+            train_dataset,
+            collate_fn=(train_collate),
+            batch_size=(self.args.batch_size),
+            shuffle=(True),
+            num_workers=self.args.num_workers * self.device_count,
+            pin_memory=(True),
+        )
+            
+        self.dataloaderVal = DataLoader(
+            val_dataset,
+            collate_fn=(default_collate),
+            batch_size=(1),
+            shuffle=(False),
+            num_workers=self.args.num_workers * self.device_count,
+            pin_memory=(False),
+        )
 
         for step, (inputs, points, gt_discrete) in enumerate(self.dataloaderTrain):
             inputs = inputs.to(self.device)
@@ -316,7 +320,7 @@ class Trainer(object):
                     },
                     step=self.epoch,
                 )
-        #self.scheduler.step()
+        self.scheduler.step()
         self.logger.info(
             "Epoch {} Train, Loss: {:.2f}, Wass Distance: {:.2f}, "
             "Count Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
@@ -356,13 +360,13 @@ class Trainer(object):
         self.model.eval()  # Set model to evaluate mode
         epoch_res = []
         
-        for inputs, points, name in self.dataloaderVal:
+        for inputs, count, name in self.dataloaderVal:
             with torch.no_grad():
                 # nputs = cal_new_tensor(inputs, min_size=args.crop_size)
                 inputs = inputs.to(self.device)
-                gd_count_val = np.array([len(p) for p in points], dtype=np.float32)    
+                #gd_count_val = np.array([len(p) for p in points], dtype=np.float32)    
                 
-                '''
+                
                 crop_imgs, crop_masks = [], []
                 b, c, h, w = inputs.size()
                 rh, rw = args.crop_size, args.crop_size
@@ -377,8 +381,8 @@ class Trainer(object):
                 crop_imgs, crop_masks = map(
                     lambda x: torch.cat(x, dim=0), (crop_imgs, crop_masks)
                 )
-                '''
-                '''
+                
+                
                 crop_preds = []
                 nz, bz = crop_imgs.size(0), args.batch_size
                 for i in range(0, nz, bz):
@@ -398,10 +402,10 @@ class Trainer(object):
 
                     crop_preds.append(crop_pred)
                 crop_preds = torch.cat(crop_preds, dim=0)
-                '''
+                
                      
-                outputs, outputs_normed = self.model(inputs)
-                '''
+                #outputs, outputs_normed = self.model(inputs)
+                
                 # splice them to the original size
                 idx = 0
                 pred_map = torch.zeros([b, 1, h, w]).to(self.device)
@@ -415,9 +419,9 @@ class Trainer(object):
                 
                 mask = crop_masks.sum(dim=0).unsqueeze(0)
                 outputs = pred_map / mask
-                '''
                 
-                res = gd_count_val - torch.sum(outputs).item()      # TO See
+                
+                res = count[0].item() - torch.sum(outputs).item()      # TO See
                 epoch_res.append(res)
                
              
