@@ -10,26 +10,27 @@ def str2bool(v):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train')
-    parser.add_argument('--data-dir', default='/home/cv06f23/Dataset/ShanghaiTech/ShanghaiTech/part_B', help='data path')
-    parser.add_argument('--dataset', default='shb', help='dataset name: qnrf, nwpu, sha, shb, custom')
-    parser.add_argument('--lr', type=float, default=0.4*1e-5,
+    #parser.add_argument('--data-dir', default='/home/cv06f23/Dataset/jhu_crowd_v2.0/jhu_crowd_v2.0', help='data path')
+    parser.add_argument('--data-dir', default='/home/cv06f23/Dataset/ShanghaiTech/ShanghaiTech/part_A', help='data path')
+    parser.add_argument('--dataset', default='sha', help='dataset name: qnrf, nwpu, sha, shb, custom, jhu')
+    parser.add_argument('--lr', type=float, default=1*1e-5,
                         help='the initial learning rate')
     parser.add_argument('--weight-decay', type=float, default=1e-4,
                         help='the weight decay')
-    parser.add_argument('--resume', default='./ckpts/ALTGVT/CCTrans_12-1-input-512_wot-0.1_wtv-0.01_reg-10.0_nIter-100_normCood-0/best_model.pth', type=str,
+    parser.add_argument('--resume', default='', type=str,
                         help='the path of resume training model')
-    parser.add_argument('--max-epoch', type=int, default=2000,
+    parser.add_argument('--max-epoch', type=int, default=1000,
                         help='max training epoch')
     parser.add_argument('--val-epoch', type=int, default=1,
                         help='the num of steps to log training information')
     parser.add_argument('--val-start', type=int, default=0,
                         help='the epoch start to val')
-    parser.add_argument('--batch-size', type=int, default=5,
+    parser.add_argument('--batch-size', type=int, default=4,
                         help='train batch size')
     parser.add_argument('--device', default='0', help='assign device')
     parser.add_argument('--num-workers', type=int, default=16,
                         help='the num of training process')
-    parser.add_argument('--crop-size', type=int, default= 512,
+    parser.add_argument('--crop-size', type=int, default= 256,
                         help='the crop size of the train image')
     parser.add_argument('--wot', type=float, default=0.1, help='weight on OT loss')
     parser.add_argument('--wtv', type=float, default=0.01, help='weight on TV loss')
@@ -51,6 +52,8 @@ def parse_args():
         args.crop_size = 384
         args.val_epoch = 50
     elif args.dataset.lower() == 'sha':
+        args.crop_size = 256
+    elif args.dataset.lower() == 'jhu':
         args.crop_size = 256
     elif args.dataset.lower() == 'shb':
         args.crop_size = 512

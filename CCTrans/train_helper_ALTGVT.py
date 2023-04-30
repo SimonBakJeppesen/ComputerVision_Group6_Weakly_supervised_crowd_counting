@@ -8,7 +8,8 @@ from torch.utils.data.dataloader import default_collate
 import numpy as np
 from datetime import datetime
 import torch.nn.functional as F
-from datasets.crowd import Crowd_qnrf, Crowd_nwpu, Crowd_sh, CustomDataset
+from datasets.crowd import Crowd_qnrf, Crowd_nwpu, Crowd_sh, CustomDataset, Crowd_jhu
+import h5py
 
 #from models import vgg19
 from Networks import ALTGVT
@@ -75,12 +76,29 @@ class Trainer(object):
             }
         elif args.dataset.lower() == "nwpu":
             self.datasets = {
-                x: Crowd_nwpu(
+                x: Crowd_(
                     os.path.join(
                         args.data_dir, x), args.crop_size, downsample_ratio, x
                 )
                 for x in ["train", "val"]
             }
+        ######## added by group 6
+        elif args.dataset.lower() == "jhu":
+            self.datasets = {
+                "train": Crowd_jhu(
+                    os.path.join(args.data_dir, "train"),
+                    args.crop_size,
+                    downsample_ratio,
+                    "train",
+                ),
+                "val": Crowd_jhu(
+                    os.path.join(args.data_dir, "val"),
+                    args.crop_size,
+                    downsample_ratio,
+                    "val",
+                ),
+            }
+        ########
         elif args.dataset.lower() == "sha" or args.dataset.lower() == "shb":
             self.datasets = {
                 "train": Crowd_sh(
@@ -204,10 +222,10 @@ class Trainer(object):
         for step, (inputs, points, gt_discrete) in enumerate(self.dataloaders["train"]):
             inputs = inputs.to(self.device)
             gd_count = np.array([len(p) for p in points], dtype=np.float32)
-            points = [p.to(self.device) for p in points]
-            gt_discrete = gt_discrete.to(self.device)
+            #points = [p.to(self.device) for p in points]
+            #gt_discrete = gt_discrete.to(self.device)
             N = inputs.size(0)
-
+            print('hej')
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
                 # Compute OT loss.
