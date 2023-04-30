@@ -168,36 +168,38 @@ class Trainer(object):
             print(self.train_part)
             print(self.val_part)
             
-            self.start_epoch = 0
+            if self.fold > 2:
             
-            time_str = datetime.strftime(datetime.now(), "%m%d-%H%M%S")
-            self.logger = log_utils.get_logger(
-                os.path.join(self.save_dir, "train-{:s}-fold{}.log".format(time_str,self.fold))
-            )
-            
-            self.model = ALTGVT.alt_gvt_large(pretrained=True)
-            self.model.to(self.device)
-            self.optimizer = optim.AdamW(
-                self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
-            )
-            
-            #OBS!!!! Implement scheduler here
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[1000], gamma=0.3, last_epoch=-1)
-            
-            self.best_mae = np.inf
-            self.best_mse = np.inf
+                self.start_epoch = 0
 
-            print('Beginning {} fold'.format(self.fold))
-            
-            args = self.args
-            for epoch in range(self.start_epoch, args.max_epoch + 1):
-                self.logger.info(
-                    "-" * 5 + "Epoch {}/{}".format(epoch, args.max_epoch) + "-" * 5
+                time_str = datetime.strftime(datetime.now(), "%m%d-%H%M%S")
+                self.logger = log_utils.get_logger(
+                    os.path.join(self.save_dir, "train-{:s}-fold{}.log".format(time_str,self.fold))
                 )
-                self.epoch = epoch
-                self.train_epoch()
-                if epoch % args.val_epoch == 0 and epoch >= args.val_start:
-                    self.val_epoch()
+
+                self.model = ALTGVT.alt_gvt_large(pretrained=True)
+                self.model.to(self.device)
+                self.optimizer = optim.AdamW(
+                    self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
+                )
+
+                #OBS!!!! Implement scheduler here
+                #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[1000], gamma=0.3, last_epoch=-1)
+
+                self.best_mae = np.inf
+                self.best_mse = np.inf
+
+                print('Beginning {} fold'.format(self.fold))
+
+                args = self.args
+                for epoch in range(self.start_epoch, args.max_epoch + 1):
+                    self.logger.info(
+                        "-" * 5 + "Epoch {}/{}".format(epoch, args.max_epoch) + "-" * 5
+                    )
+                    self.epoch = epoch
+                    self.train_epoch()
+                    if epoch % args.val_epoch == 0 and epoch >= args.val_start:
+                        self.val_epoch()
 
     def train_epoch(self):
         epoch_ot_loss = AverageMeter()
@@ -320,7 +322,7 @@ class Trainer(object):
                     },
                     step=self.epoch,
                 )
-        self.scheduler.step()
+        #self.scheduler.step()
         self.logger.info(
             "Epoch {} Train, Loss: {:.2f}, Wass Distance: {:.2f}, "
             "Count Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
