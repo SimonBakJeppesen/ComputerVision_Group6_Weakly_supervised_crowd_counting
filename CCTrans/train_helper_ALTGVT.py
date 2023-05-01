@@ -9,7 +9,6 @@ import numpy as np
 from datetime import datetime
 import torch.nn.functional as F
 from datasets.crowd import Crowd_qnrf, Crowd_nwpu, Crowd_sh, CustomDataset, Crowd_jhu
-import h5py
 
 #from models import vgg19
 from Networks import ALTGVT
@@ -225,7 +224,7 @@ class Trainer(object):
             #points = [p.to(self.device) for p in points]
             #gt_discrete = gt_discrete.to(self.device)
             N = inputs.size(0)
-            print('hej')
+            
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
                 # Compute OT loss.
@@ -337,11 +336,13 @@ class Trainer(object):
         self.save_list.append(save_path)
 
     def val_epoch(self):
+        print("start val")
         args = self.args
         epoch_start = time.time()
         self.model.eval()  # Set model to evaluate mode
         epoch_res = []
         for inputs, count, name in self.dataloaders["val"]:
+            print(name)
             with torch.no_grad():
                 # nputs = cal_new_tensor(inputs, min_size=args.crop_size)
                 inputs = inputs.to(self.device)

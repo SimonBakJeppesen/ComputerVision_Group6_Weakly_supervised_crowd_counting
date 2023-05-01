@@ -10,9 +10,9 @@ def str2bool(v):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train')
-    #parser.add_argument('--data-dir', default='/home/cv06f23/Dataset/jhu_crowd_v2.0/jhu_crowd_v2.0', help='data path')
-    parser.add_argument('--data-dir', default='/home/cv06f23/Dataset/ShanghaiTech/ShanghaiTech/part_A', help='data path')
-    parser.add_argument('--dataset', default='sha', help='dataset name: qnrf, nwpu, sha, shb, custom, jhu')
+    parser.add_argument('--data-dir', default='/home/cv06f23/Dataset/jhu_crowd_v2.0/jhu_crowd_v2.0', help='data path')
+    #parser.add_argument('--data-dir', default='/home/cv06f23/Dataset/ShanghaiTech/ShanghaiTech/part_A', help='data path')
+    parser.add_argument('--dataset', default='jhu', help='dataset name: qnrf, nwpu, sha, shb, custom, jhu')
     parser.add_argument('--lr', type=float, default=1*1e-5,
                         help='the initial learning rate')
     parser.add_argument('--weight-decay', type=float, default=1e-4,
@@ -25,9 +25,9 @@ def parse_args():
                         help='the num of steps to log training information')
     parser.add_argument('--val-start', type=int, default=0,
                         help='the epoch start to val')
-    parser.add_argument('--batch-size', type=int, default=4,
+    parser.add_argument('--batch-size', type=int, default=2,
                         help='train batch size')
-    parser.add_argument('--device', default='0', help='assign device')
+    parser.add_argument('--device', default='1', help='assign device')
     parser.add_argument('--num-workers', type=int, default=16,
                         help='the num of training process')
     parser.add_argument('--crop-size', type=int, default= 256,

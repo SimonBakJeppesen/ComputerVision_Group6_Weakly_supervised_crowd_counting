@@ -186,7 +186,6 @@ class Crowd_sh(Base):
         img = Image.open(img_path).convert('RGB')
         keypoints = sio.loadmat(gd_path)['image_info'][0][0][0][0][0]
         if self.method == 'train':
-            #print("load new crop")
             return self.train_transform(img, keypoints)
         elif self.method == 'val':
             wd, ht = img.size
@@ -239,6 +238,7 @@ class Crowd_sh(Base):
                 img = F.hflip(img)
                 gt_discrete = np.fliplr(gt_discrete)
         gt_discrete = np.expand_dims(gt_discrete, 0)
+
         return self.trans(img), torch.from_numpy(keypoints.copy()).float(), torch.from_numpy(
             gt_discrete.copy()).float()
 
@@ -380,7 +380,11 @@ class Crowd_jhu(Base):
         name = os.path.basename(img_path).split('.')[0]
         gd_path = os.path.join(self.root_path, 'gt', '{}.txt'.format(name))
         img = Image.open(img_path).convert('RGB')
-        keypoints = np.loadtxt(gd_path, delimiter=' ')[:,:2]
+        keypoints_ = np.loadtxt(gd_path)
+        if keypoints_.ndim > 1:
+            keypoints = keypoints_[:,:2]
+        else:
+            keypoints = []
         
         if self.method == 'train':
             return self.train_transform(img, keypoints)

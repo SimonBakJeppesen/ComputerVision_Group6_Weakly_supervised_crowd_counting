@@ -33,7 +33,7 @@ def parse_args():
                         help='the crop size of the train image')
     parser.add_argument('--wot', type=float, default=0.1, help='weight on OT loss')
     parser.add_argument('--wtv', type=float, default=0.02, help='weight on TV loss')
-    parser.add_argument('--beta', type=float, default=12.0, help='Beta value of the smooth L1 loss')
+    parser.add_argument('--beta', type=float, default=40.0, help='Beta value of the smooth L1 loss')
     parser.add_argument('--reg', type=float, default=10.0,
                         help='entropy regularization in sinkhorn')
     parser.add_argument('--num-of-iter-in-ot', type=int, default=100,
