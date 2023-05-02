@@ -1,509 +1,497 @@
+from PIL import Image
+import torch.utils.data as data
 import os
-import time
-import sys
+from glob import glob
 import torch
-import torch.nn as nn
-from torch import optim
-from torch.utils.data import DataLoader
-from torch.utils.data.dataloader import default_collate
-from torch.utils.data import Subset
+import torchvision.transforms.functional as F
+from torchvision import transforms
+import random
 import numpy as np
-from datetime import datetime
-import torch.nn.functional as F
-from datasets.crowd import Crowd_qnrf, Crowd_nwpu, Crowd_sh, CustomDataset
-from sklearn.model_selection import KFold ####
-
-#from models import vgg19
-from Networks import ALTGVT
-from losses.ot_loss import OT_Loss
-from utils.pytorch_utils import Save_Handle, AverageMeter
-import utils.log_utils as log_utils
-import wandb
-
-def train_collate(batch):
-    transposed_batch = list(zip(*batch))
-    images = torch.stack(transposed_batch[0], 0)
-    points = transposed_batch[
-        1
-    ]  # the number of points is not fixed, keep it as a list of tensor
-    gt_discretes = torch.stack(transposed_batch[2], 0)
-    return images, points, gt_discretes
+import scipy.io as sio
+import h5py
 
 
-class Trainer(object):
-    def __init__(self, args):
-        self.args = args
+def random_crop(im_h, im_w, crop_h, crop_w):
+    res_h = im_h - crop_h
+    res_w = im_w - crop_w
+    i = random.randint(0, res_h)
+    j = random.randint(0, res_w)
+    return i, j, crop_h, crop_w
 
-    def setup(self):
-        args = self.args
-        sub_dir = (
-            "ALTGVT/{}_12-1-input-{}_wot-{}_wtv-{}_reg-{}_nIter-{}_normCood-{}".format(
-                args.run_name,
-                args.crop_size,
-                args.wot,
-                args.wtv,
-                args.reg,
-                args.num_of_iter_in_ot,
-                args.norm_cood,
-            )
-        )
 
-        self.save_dir = os.path.join("ckpts", sub_dir)
-        if not os.path.exists(self.save_dir):
-            os.makedirs(self.save_dir)
+def gen_discrete_map(im_height, im_width, points):
+    """
+        func: generate the discrete map.
+        points: [num_gt, 2], for each row: [width, height]
+        """
+    discrete_map = np.zeros([im_height, im_width], dtype=np.float32)
+    h, w = discrete_map.shape[:2]
+    num_gt = points.shape[0]
+    if num_gt == 0:
+        return discrete_map
+    
+    # fast create discrete map
+    points_np = np.array(points).round().astype(int)
+    p_h = np.minimum(points_np[:, 1], np.array([h-1]*num_gt).astype(int))
+    p_w = np.minimum(points_np[:, 0], np.array([w-1]*num_gt).astype(int))
+    p_index = torch.from_numpy(p_h* im_width + p_w).to(torch.int64)
+    discrete_map = torch.zeros(im_width * im_height).scatter_add_(0, index=p_index, src=torch.ones(im_width*im_height)).view(im_height, im_width).numpy()
 
-        time_str = datetime.strftime(datetime.now(), "%m%d-%H%M%S")
-        self.logger = log_utils.get_logger(
-            os.path.join(self.save_dir, "train-{:s}.log".format(time_str))
-        )
-        log_utils.print_config(vars(args), self.logger)
+    ''' slow method
+    for p in points:
+        p = np.round(p).astype(int)
+        p[0], p[1] = min(h - 1, p[1]), min(w - 1, p[0])
+        discrete_map[p[0], p[1]] += 1
+    '''
+    assert np.sum(discrete_map) == num_gt
+    return discrete_map
 
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda")
-            self.device_count = torch.cuda.device_count()
-            assert self.device_count == 1
-            self.logger.info("using {} gpus".format(self.device_count))
+
+class Base(data.Dataset):
+    def __init__(self, root_path, crop_size, downsample_ratio=8):
+
+        self.root_path = root_path
+        self.c_size = crop_size
+        self.d_ratio = downsample_ratio
+        assert self.c_size % self.d_ratio == 0
+        self.dc_size = self.c_size // self.d_ratio
+        self.trans = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+
+    def __len__(self):
+        pass
+
+    def __getitem__(self, item):
+        pass
+
+    def train_transform(self, img, keypoints):
+        wd, ht = img.size
+        st_size = 1.0 * min(wd, ht)
+        assert st_size >= self.c_size
+        assert len(keypoints) >= 0
+        i, j, h, w = random_crop(ht, wd, self.c_size, self.c_size)
+        img = F.crop(img, i, j, h, w)
+        if len(keypoints) > 0:
+            keypoints = keypoints - [j, i]
+            idx_mask = (keypoints[:, 0] >= 0) * (keypoints[:, 0] <= w) * \
+                       (keypoints[:, 1] >= 0) * (keypoints[:, 1] <= h)
+            keypoints = keypoints[idx_mask]
         else:
-            raise Exception("gpu is not available")
+            keypoints = np.empty([0, 2])
 
-        downsample_ratio = 8
-        if args.dataset.lower() == "qnrf":
-            self.datasets = {
-                x: Crowd_qnrf(
-                    os.path.join(
-                        args.data_dir, x), args.crop_size, downsample_ratio, x
-                )
-                for x in ["train", "val"]
-            }
-        elif args.dataset.lower() == "nwpu":
-            self.datasets = {
-                x: Crowd_nwpu(
-                    os.path.join(
-                        args.data_dir, x), args.crop_size, downsample_ratio, x
-                )
-                for x in ["train", "val"]
-            }
-        elif args.dataset.lower() == "sha" or args.dataset.lower() == "shb":
-            self.datasets = {
-                "train": Crowd_sh(
-                    os.path.join(args.data_dir, "train_data"),
-                    args.crop_size,
-                    downsample_ratio,
-                    "train",
-                ),
-                "val": Crowd_sh(
-                    os.path.join(args.data_dir, "train_data"),
-                    args.crop_size,
-                    downsample_ratio,
-                    "val",
-                ),
-            }
-        elif args.dataset.lower() == "custom":
-            self.datasets = {
-                "train": CustomDataset(
-                    args.data_dir, args.crop_size, downsample_ratio, method="train"
-                ),
-                "val": CustomDataset(
-                    args.data_dir, args.crop_size, downsample_ratio, method="valid"
-                ),
-            }
+        gt_discrete = gen_discrete_map(h, w, keypoints)
+        down_w = w // self.d_ratio
+        down_h = h // self.d_ratio
+        gt_discrete = gt_discrete.reshape([down_h, self.d_ratio, down_w, self.d_ratio]).sum(axis=(1, 3))
+        assert np.sum(gt_discrete) == len(keypoints)
+
+        if len(keypoints) > 0:
+            if random.random() > 0.5:
+                img = F.hflip(img)
+                gt_discrete = np.fliplr(gt_discrete)
+                keypoints[:, 0] = w - keypoints[:, 0]
         else:
-            raise NotImplementedError
+            if random.random() > 0.5:
+                img = F.hflip(img)
+                gt_discrete = np.fliplr(gt_discrete)
+        gt_discrete = np.expand_dims(gt_discrete, 0)
+
+        return self.trans(img), torch.from_numpy(keypoints.copy()).float(), torch.from_numpy(
+            gt_discrete.copy()).float()
+
+
+class Crowd_qnrf(Base):
+    def __init__(self, root_path, crop_size,
+                 downsample_ratio=8,
+                 method='train'):
+        super().__init__(root_path, crop_size, downsample_ratio)
+        self.method = method
+        self.im_list = sorted(glob(os.path.join(self.root_path, '*.jpg')))
+        print('number of img: {}'.format(len(self.im_list)))
+        if method not in ['train', 'val']:
+            raise Exception("not implement")
+
+    def __len__(self):
+        return len(self.im_list)
+
+    def __getitem__(self, item):
+        img_path = self.im_list[item]
+        gd_path = img_path.replace('jpg', 'npy')
+        img = Image.open(img_path).convert('RGB')
+        if self.method == 'train':
+            keypoints = np.load(gd_path)
+            return self.train_transform(img, keypoints)
+        elif self.method == 'val':
+            keypoints = np.load(gd_path)
+            img = self.trans(img)
+            name = os.path.basename(img_path).split('.')[0]
+            return img, len(keypoints), name
+
+
+class Crowd_nwpu(Base):
+    def __init__(self, root_path, crop_size,
+                 downsample_ratio=8,
+                 method='train'):
+        super().__init__(root_path, crop_size, downsample_ratio)
+        self.method = method
+        self.im_list = sorted(glob(os.path.join(self.root_path, '*.jpg')))
+        print('number of img: {}'.format(len(self.im_list)))
+
+        if method not in ['train', 'val', 'test']:
+            raise Exception("not implement")
+
+    def __len__(self):
+        return len(self.im_list)
+
+    def __getitem__(self, item):
+        img_path = self.im_list[item]
+        gd_path = img_path.replace('jpg', 'npy')
+        img = Image.open(img_path).convert('RGB')
+        if self.method == 'train':
+            keypoints = np.load(gd_path)
+            return self.train_transform(img, keypoints)
+        elif self.method == 'val':
+            keypoints = np.load(gd_path)
+            img = self.trans(img)
+            name = os.path.basename(img_path).split('.')[0]
+            return img, len(keypoints), name
+        elif self.method == 'test':
+            img = self.trans(img)
+            name = os.path.basename(img_path).split('.')[0]
+            return img, name
+
+
+class Crowd_sh(Base):
+    def __init__(self, root_path, crop_size,
+                 downsample_ratio=8,
+                 method='train'):
+        super().__init__(root_path, crop_size, downsample_ratio)
+        self.method = method
+        if method not in ['train', 'val']:
+            raise Exception("not implement")
+
+        self.im_list = sorted(glob(os.path.join(self.root_path, 'images', '*.jpg')))
+
+        print('number of img [{}]: {}'.format(method, len(self.im_list)))
+
+    def __len__(self):
+        return len(self.im_list)
+
+    def __getitem__(self, item):
+        img_path = self.im_list[item]
+        name = os.path.basename(img_path).split('.')[0]
+        gd_path = os.path.join(self.root_path, 'ground-truth', 'GT_{}.mat'.format(name))
+        img = Image.open(img_path).convert('RGB')
+        keypoints = sio.loadmat(gd_path)['image_info'][0][0][0][0][0]
+        if self.method == 'train':
+            return self.train_transform(img, keypoints)
+        elif self.method == 'val':
+            wd, ht = img.size
+            st_size = 1.0 * min(wd, ht)             
+            if st_size < self.c_size:
+                rr = 1.0 * self.c_size / st_size
+                wd = round(wd * rr)
+                ht = round(ht * rr)
+                st_size = 1.0 * min(wd, ht)
+                img = img.resize((wd, ht), Image.BICUBIC)
+            img = self.trans(img)
+            return img, len(keypoints), name
+
+    def train_transform(self, img, keypoints):
+        wd, ht = img.size
+        st_size = 1.0 * min(wd, ht)
+        # resize the image to fit the crop size
+        if st_size < self.c_size:
+            rr = 1.0 * self.c_size / st_size
+            wd = round(wd * rr)
+            ht = round(ht * rr)
+            st_size = 1.0 * min(wd, ht)
+            img = img.resize((wd, ht), Image.BICUBIC)
+            keypoints = keypoints * rr
+        assert st_size >= self.c_size, print(wd, ht)
+        assert len(keypoints) >= 0
+        i, j, h, w = random_crop(ht, wd, self.c_size, self.c_size)
+        img = F.crop(img, i, j, h, w)
+        if len(keypoints) > 0:
+            keypoints = keypoints - [j, i]
+            idx_mask = (keypoints[:, 0] >= 0) * (keypoints[:, 0] <= w) * \
+                       (keypoints[:, 1] >= 0) * (keypoints[:, 1] <= h)
+            keypoints = keypoints[idx_mask]
+        else:
+            keypoints = np.empty([0, 2])
+
+        gt_discrete = gen_discrete_map(h, w, keypoints)
+        down_w = w // self.d_ratio
+        down_h = h // self.d_ratio
+        gt_discrete = gt_discrete.reshape([down_h, self.d_ratio, down_w, self.d_ratio]).sum(axis=(1, 3))
+        assert np.sum(gt_discrete) == len(keypoints)
+
+        if len(keypoints) > 0:
+            if random.random() > 0.5:
+                img = F.hflip(img)
+                gt_discrete = np.fliplr(gt_discrete)
+                keypoints[:, 0] = w - keypoints[:, 0] - 1
+        else:
+            if random.random() > 0.5:
+                img = F.hflip(img)
+                gt_discrete = np.fliplr(gt_discrete)
+        gt_discrete = np.expand_dims(gt_discrete, 0)
+
+        return self.trans(img), torch.from_numpy(keypoints.copy()).float(), torch.from_numpy(
+            gt_discrete.copy()).float()
+
+
+class CustomDataset(Base):
+    '''
+    Class that allows training for a custom dataset. The folder are designed in the following way:
+    root_dataset_path:
+        -> images_1
+        ->another_folder_with_image
+        ->train.list
+        ->valid.list
+
+    The content of the lists file (csv with space as separator) are:
+        img_xx__path label_xx_path
+        img_xx1__path label_xx1_path
+
+    where label_xx_path contains a list of x,y position of the head.
+    '''
+    def __init__(self, root_path, crop_size,
+                 downsample_ratio=8,
+                 method='train'):
+        super().__init__(root_path, crop_size, downsample_ratio)
+        self.method = method
+        if method not in ['train', 'valid', 'test']:
+            raise Exception("not implement")
+
+        # read the list file
+        self.img_to_label = {}
+        list_file = f'{method}.list' # train.list, valid.list or test.list
+        with open(os.path.join(self.root_path, list_file)) as fin:
+                for line in fin:
+                    if len(line) < 2: 
+                        continue
+                    line = line.strip().split()
+                    self.img_to_label[os.path.join(self.root_path, line[0].strip())] = \
+                                    os.path.join(self.root_path, line[1].strip())
+        self.img_list = sorted(list(self.img_to_label.keys()))
+
+
+        print('number of img [{}]: {}'.format(method, len(self.img_list)))
+
+    def __len__(self):
+        return len(self.img_list)
+
+    def __getitem__(self, item):
+        img_path = self.img_list[item]
+        gt_path = self.img_to_label[img_path]
+        img_name = os.path.basename(img_path).split('.')[0]
+
+        img = Image.open(img_path).convert('RGB')
+        keypoints = self.load_head_annotation(gt_path)
        
+        if self.method == 'train':
+            return self.train_transform(img, keypoints)
+        elif self.method == 'valid' or self.method == 'test':
+            wd, ht = img.size
+            st_size = 1.0 * min(wd, ht)
+            if st_size < self.c_size:
+                rr = 1.0 * self.c_size / st_size
+                wd = round(wd * rr)
+                ht = round(ht * rr)
+                st_size = 1.0 * min(wd, ht)
+                img = img.resize((wd, ht), Image.BICUBIC)
+            img = self.trans(img)
+            return img, len(keypoints), img_name
 
-        self.start_epoch = 0
-        
-        # check if wandb has to log
-        if args.wandb:
-            self.wandb_run = wandb.init(
-            config=args, project="CTTrans", name=args.run_name
-        )
-        else : 
-            wandb.init(mode="disabled")
-        
-        if args.resume:
-            self.logger.info("loading pretrained model from " + args.resume)
-            suf = args.resume.rsplit(".", 1)[-1]
-            if suf == "tar":
-                checkpoint = torch.load(args.resume, self.device)
-                self.model.load_state_dict(checkpoint["model_state_dict"])
-                self.optimizer.load_state_dict(
-                    checkpoint["optimizer_state_dict"])
-                self.start_epoch = checkpoint["epoch"] + 1
-            elif suf == "pth":
-                self.model.load_state_dict(
-                    torch.load(args.resume, self.device))
+    def load_head_annotation(self, gt_path):
+        annotations = []
+        with open(gt_path) as annotation:
+            for line in annotation:
+                x = float(line.strip().split(' ')[0])
+                y = float(line.strip().split(' ')[1])
+                annotations.append([x, y])
+        return np.array(annotations)
+
+    def train_transform(self, img, keypoints):
+        wd, ht = img.size
+        st_size = 1.0 * min(wd, ht)
+        # resize the image to fit the crop size
+        if st_size < self.c_size:
+            rr = 1.0 * self.c_size / st_size
+            wd = round(wd * rr)
+            ht = round(ht * rr)
+            st_size = 1.0 * min(wd, ht)
+            img = img.resize((wd, ht), Image.BICUBIC)
+            keypoints = keypoints * rr
+        assert st_size >= self.c_size, print(wd, ht)
+        assert len(keypoints) >= 0
+        i, j, h, w = random_crop(ht, wd, self.c_size, self.c_size)
+        img = F.crop(img, i, j, h, w)
+        if len(keypoints) > 0:
+            keypoints = keypoints - [j, i]
+            idx_mask = (keypoints[:, 0] >= 0) * (keypoints[:, 0] <= w) * \
+                       (keypoints[:, 1] >= 0) * (keypoints[:, 1] <= h)
+            keypoints = keypoints[idx_mask]
         else:
-            self.logger.info("random initialization")
-        
-        
-        self.ot_loss = OT_Loss(
-            args.crop_size,
-            downsample_ratio,
-            args.norm_cood,
-            self.device,
-            args.num_of_iter_in_ot,
-            args.reg,
-        )
+            keypoints = np.empty([0, 2])
 
-        self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          #
-        self.mse = nn.MSELoss().to(self.device)
-        self.mae = nn.L1Loss().to(self.device)                              # 
-        self.smoothL1 = nn.SmoothL1Loss(beta=self.args.beta).to(self.device)
-        self.save_list = Save_Handle(max_num=1)
-        self.best_mae = np.inf
-        self.best_mse = np.inf
-        # self.best_count = 0
+        gt_discrete = gen_discrete_map(h, w, keypoints)
+        down_w = w // self.d_ratio
+        down_h = h // self.d_ratio
+        gt_discrete = gt_discrete.reshape([down_h, self.d_ratio, down_w, self.d_ratio]).sum(axis=(1, 3))
+        assert np.sum(gt_discrete) == len(keypoints)
 
-    def train(self):
-        """training process"""
-        args = self.args
-        kfold = KFold(n_splits=5, shuffle=True, random_state=45)            # Kfold
-        
-        for self.fold, (self.train_part, self.val_part) in enumerate(kfold.split(self.datasets["train"])):
-            self.fold += 1
-            if self.fold in [6]:
-                continue
-            
-            print(self.train_part)
-            print(self.val_part)
-            
-            if self.fold > 0:
-            
-                self.start_epoch = 0
-
-                time_str = datetime.strftime(datetime.now(), "%m%d-%H%M%S")
-                self.logger = log_utils.get_logger(
-                    os.path.join(self.save_dir, "train-{:s}-fold{}.log".format(time_str,self.fold))
-                )
-
-                self.model = ALTGVT.alt_gvt_large(pretrained=True)
-                self.model.to(self.device)
-                self.optimizer = optim.AdamW(
-                    self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
-                )
-
-                #OBS!!!! Implement scheduler here
-                #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[1000], gamma=0.3, last_epoch=-1)
-
-                self.best_mae = np.inf
-                self.best_mse = np.inf
-
-                print('Beginning {} fold'.format(self.fold))
-
-                args = self.args
-                for epoch in range(self.start_epoch, args.max_epoch + 1):
-                    self.logger.info(
-                        "-" * 5 + "Epoch {}/{}".format(epoch, args.max_epoch) + "-" * 5
-                    )
-                    self.epoch = epoch
-                    self.train_epoch()
-                    if epoch % args.val_epoch == 0 and epoch >= args.val_start:
-                        self.val_epoch()
-
-    def train_epoch(self):
-        epoch_ot_loss = AverageMeter()
-        epoch_ot_obj_value = AverageMeter()
-        epoch_wd = AverageMeter()
-        epoch_count_loss = AverageMeter()
-        epoch_tv_loss = AverageMeter()
-        epoch_loss = AverageMeter()
-        epoch_mae = AverageMeter()
-        epoch_mse = AverageMeter()
-        epoch_start = time.time()
-        self.model.train()  # Set model to training mode
-        
-        train_dataset = Subset(self.datasets["train"],self.train_part)
-        val_dataset = Subset(self.datasets["val"],self.val_part)
-            
-        #print('train_dataset')
-        #print(len(train_dataset))
-        #print(len(val_dataset))
-            
-        self.dataloaderTrain = DataLoader(
-            train_dataset,
-            collate_fn=(train_collate),
-            batch_size=(self.args.batch_size),
-            shuffle=(True),
-            num_workers=self.args.num_workers * self.device_count,
-            pin_memory=(True),
-        )
-            
-        self.dataloaderVal = DataLoader(
-            val_dataset,
-            collate_fn=(default_collate),
-            batch_size=(1),
-            shuffle=(False),
-            num_workers=self.args.num_workers * self.device_count,
-            pin_memory=(False),
-        )
-
-        for step, (inputs, points, gt_discrete) in enumerate(self.dataloaderTrain):
-            inputs = inputs.to(self.device)
-            gd_count = np.array([len(p) for p in points], dtype=np.float32)    # number of elements in points. 
-            points = [p.to(self.device) for p in points]
-            gt_discrete = gt_discrete.to(self.device)
-            N = inputs.size(0)
-
-            with torch.set_grad_enabled(True):
-                outputs, outputs_normed = self.model(inputs)
-                # Compute OT loss.
-                #ot_loss = 0 #Delete this and uncomment below for original code
-                '''
-                ot_loss, wd, ot_obj_value = self.ot_loss(
-                    outputs_normed, outputs, points
-                )
-                ot_loss = ot_loss * self.args.wot
-                ot_obj_value = ot_obj_value * self.args.wot
-                epoch_ot_loss.update(ot_loss.item(), N)
-                epoch_ot_obj_value.update(ot_obj_value.item(), N)
-                epoch_wd.update(wd, N)
-                '''
-                '''
-                # Compute counting loss.
-                count_loss = self.mae(
-                    outputs.sum(1).sum(1).sum(1),
-                    torch.from_numpy(gd_count).float().to(self.device),
-                )
-                '''
-                
-                # insert Smooth l1
-                count_loss = self.smoothL1(
-                    outputs.sum(1).sum(1).sum(1),
-                    torch.from_numpy(gd_count).float().to(self.device),
-                )
-                
-                epoch_count_loss.update(count_loss.item(), N)
-                
-                #tv_loss = 0 #Delete this and uncomment below for original code
-                '''
-                # Compute TV loss.
-                gd_count_tensor = (
-                    torch.from_numpy(gd_count)
-                    .float()
-                    .to(self.device)
-                    .unsqueeze(1)
-                    .unsqueeze(2)
-                    .unsqueeze(3)
-                )
-                gt_discrete_normed = gt_discrete / (gd_count_tensor + 1e-6)
-                tv_loss = (
-                    self.tv_loss(outputs_normed, gt_discrete_normed)
-                    .sum(1)
-                    .sum(1)
-                    .sum(1)
-                    * torch.from_numpy(gd_count).float().to(self.device)
-                ).mean(0) * self.args.wtv
-                epoch_tv_loss.update(tv_loss.item(), N)
-                '''
-
-                loss = count_loss #+ ot_loss + tv_loss   # add this again for original code
-
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-
-                pred_count = (
-                    torch.sum(outputs.view(N, -1),
-                              dim=1).detach().cpu().numpy()
-                )
-                pred_err = pred_count - gd_count
-                epoch_loss.update(loss.item(), N)
-                epoch_mse.update(np.mean(pred_err * pred_err), N)
-                epoch_mae.update(np.mean(abs(pred_err)), N)
-
-                # log wandb
-                wandb.log(
-                    {
-                        "train/TOTAL_loss": loss,
-                        "train/count_loss": count_loss,
-                        #"train/tv_loss": tv_loss,
-                        "train/pred_err": pred_err,
-                    },
-                    step=self.epoch,
-                )
-        #self.scheduler.step()
-        self.logger.info(
-            "Epoch {} Train, Loss: {:.2f}, Wass Distance: {:.2f}, "
-            "Count Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
-                self.epoch,
-                epoch_loss.get_avg(),
-                #epoch_ot_loss.get_avg(),
-                epoch_wd.get_avg(),
-                #epoch_ot_obj_value.get_avg(),
-                epoch_count_loss.get_avg(),
-                #epoch_tv_loss.get_avg(),
-                np.sqrt(epoch_mse.get_avg()),
-                epoch_mae.get_avg(),
-                time.time() - epoch_start,
-            )
-        )
-        
-        #save ckpt file
-        model_state_dic = self.model.state_dict()
-        save_path = os.path.join(
-            self.save_dir, "{}_ckpt.tar".format(self.epoch))
-        '''
-        torch.save(
-            {
-                "epoch": self.epoch,
-                "optimizer_state_dict": self.optimizer.state_dict(),
-                "model_state_dict": model_state_dic,
-            },
-            save_path,
-        )
-        '''
-        self.save_list.append(save_path)
-
-    def val_epoch(self):
-        print("start val")
-        args = self.args
-        epoch_start = time.time()
-        self.model.eval()  # Set model to evaluate mode
-        epoch_res = []
-        
-        for inputs, count, name in self.dataloaderVal:
-            with torch.no_grad():
-                # nputs = cal_new_tensor(inputs, min_size=args.crop_size)
-                inputs = inputs.to(self.device)
-                #gd_count_val = np.array([len(p) for p in points], dtype=np.float32)    
-                
-                
-                crop_imgs, crop_masks = [], []
-                b, c, h, w = inputs.size()
-                rh, rw = args.crop_size, args.crop_size
-                for i in range(0, h, rh):
-                    gis, gie = max(min(h - rh, i), 0), min(h, i + rh)
-                    for j in range(0, w, rw):
-                        gjs, gje = max(min(w - rw, j), 0), min(w, j + rw)
-                        crop_imgs.append(inputs[:, :, gis:gie, gjs:gje])
-                        mask = torch.zeros([b, 1, h, w]).to(self.device)
-                        mask[:, :, gis:gie, gjs:gje].fill_(1.0)
-                        crop_masks.append(mask)
-                crop_imgs, crop_masks = map(
-                    lambda x: torch.cat(x, dim=0), (crop_imgs, crop_masks)
-                )
-                
-                
-                crop_preds = []
-                nz, bz = crop_imgs.size(0), args.batch_size
-                for i in range(0, nz, bz):
-                    gs, gt = i, min(nz, i + bz)
-                    crop_pred, _ = self.model(crop_imgs[gs:gt])
-
-                    _, _, h1, w1 = crop_pred.size()
-                    crop_pred = (
-                        F.interpolate(
-                            crop_pred,
-                            size=(h1 * 8, w1 * 8),
-                            mode="bilinear",
-                            align_corners=True,
-                        )
-                        / 64
-                    )
-
-                    crop_preds.append(crop_pred)
-                crop_preds = torch.cat(crop_preds, dim=0)
-                
-                     
-                #outputs, outputs_normed = self.model(inputs)
-                
-                # splice them to the original size
-                idx = 0
-                pred_map = torch.zeros([b, 1, h, w]).to(self.device)
-                for i in range(0, h, rh):
-                    gis, gie = max(min(h - rh, i), 0), min(h, i + rh)
-                    for j in range(0, w, rw):
-                        gjs, gje = max(min(w - rw, j), 0), min(w, j + rw)
-                        pred_map[:, :, gis:gie, gjs:gje] += crop_preds[idx]
-                        idx += 1
-                # for the overlapping area, compute average value
-                
-                mask = crop_masks.sum(dim=0).unsqueeze(0)
-                outputs = pred_map / mask
-                
-                
-                res = count[0].item() - torch.sum(outputs).item()      # TO See
-                epoch_res.append(res)
-               
-             
-        epoch_res = np.array(epoch_res)
-        mse = np.sqrt(np.mean(np.square(epoch_res)))
-        mae = np.mean(np.abs(epoch_res))
-
-        self.logger.info(
-            "Fold {} Epoch {} Val, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
-                self.fold, self.epoch, mse, mae, time.time() - epoch_start
-            )
-        )
-
-        # log wandb
-        wandb.log({"val/MSE": mse, "val/MAE": mae}, step=self.epoch)
-
-        model_state_dic = self.model.state_dict()
-        # if (2.0 * mse + mae) < (2.0 * self.best_mse + self.best_mae):
-        print("Comaprison", mae,  self.best_mae)
-        if mae < self.best_mae:
-            self.best_mse = mse
-            self.best_mae = mae
-            self.logger.info(
-                "save best mse {:.2f} mae {:.2f} model epoch {}".format(
-                    self.best_mse, self.best_mae, self.epoch
-                )
-            )
-            print("Saving best model at {} epoch".format(self.epoch))
-            model_path = os.path.join(
-                self.save_dir, "best_model_fold{}.pth".format(self.fold)
-            )
-            torch.save(
-                model_state_dic,
-                model_path,
-            )
-
-            if args.wandb:
-                artifact = wandb.Artifact("model", type="model")
-                artifact.add_file(model_path)
-                
-                self.wandb_run.log_artifact(artifact)
-            
-            # torch.save(model_state_dic, os.path.join(self.save_dir, 'best_model_{}.pth'.format(self.best_count)))
-            # self.best_count += 1
-
-
-def tensor_divideByfactor(img_tensor, factor=32):
-    _, _, h, w = img_tensor.size()
-    h, w = int(h // factor * factor), int(w // factor * factor)
-    img_tensor = F.interpolate(
-        img_tensor, (h, w), mode="bilinear", align_corners=True)
-
-    return img_tensor
-
-
-def cal_new_tensor(img_tensor, min_size=256):
-    _, _, h, w = img_tensor.size()
-    if min(h, w) < min_size:
-        ratio_h, ratio_w = min_size / h, min_size / w
-        if ratio_h >= ratio_w:
-            img_tensor = F.interpolate(
-                img_tensor,
-                (min_size, int(min_size / h * w)),
-                mode="bilinear",
-                align_corners=True,
-            )
+        if len(keypoints) > 0:
+            if random.random() > 0.5:
+                img = F.hflip(img)
+                gt_discrete = np.fliplr(gt_discrete)
+                keypoints[:, 0] = w - keypoints[:, 0] - 1
         else:
-            img_tensor = F.interpolate(
-                img_tensor,
-                (int(min_size / w * h), min_size),
-                mode="bilinear",
-                align_corners=True,
-            )
-    return img_tensor
+            if random.random() > 0.5:
+                img = F.hflip(img)
+                gt_discrete = np.fliplr(gt_discrete)
+        gt_discrete = np.expand_dims(gt_discrete, 0)
 
+        return self.trans(img), torch.from_numpy(keypoints.copy()).float(), torch.from_numpy(
+            gt_discrete.copy()).float()
+    
+#added by group 6
+'''
+class Crowd_jhu(Base):
+    def __init__(self, root_path, crop_size,
+                 downsample_ratio=8,
+                 method='train'):
+        super().__init__(root_path, crop_size, downsample_ratio)
+        self.method = method
+        if method not in ['train', 'val','test']:
+            raise Exception("not implement")
 
-if __name__ == "__main__":
-    import torch
+        self.im_list = sorted(glob(os.path.join(self.root_path, 'images', '*.jpg')))
 
-    print(torch.__file__)
-    x = torch.ones(1, 3, 768, 1152)
-    y = tensor_spilt(x)
-    print(y.size())
+        print('number of img [{}]: {}'.format(method, len(self.im_list)))
+
+    def __len__(self):
+        return len(self.im_list)
+
+    def __getitem__(self, item):
+        img_path = self.im_list[item]
+        name = os.path.basename(img_path).split('.')[0]
+        gd_path = os.path.join(self.root_path, 'gt', '{}.txt'.format(name))
+        img = Image.open(img_path).convert('RGB')
+        keypoints_ = np.loadtxt(gd_path)
+        if keypoints_.ndim > 1:
+            keypoints = keypoints_[:,:2]
+        else:
+            keypoints = []
+        
+        if self.method == 'train':
+            return self.train_transform(img, keypoints)
+        elif self.method == 'val':
+            wd, ht = img.size
+            st_size = 1.0 * min(wd, ht)             
+            if st_size < self.c_size:
+                rr = 1.0 * self.c_size / st_size
+                wd = round(wd * rr)
+                ht = round(ht * rr)
+                st_size = 1.0 * min(wd, ht)
+                img = img.resize((wd, ht), Image.BICUBIC)
+            img = self.trans(img)
+            return img, len(keypoints), name
+        elif self.method == 'test':
+            wd, ht = img.size
+            st_size = 1.0 * min(wd, ht)             
+            if st_size < self.c_size:
+                rr = 1.0 * self.c_size / st_size
+                wd = round(wd * rr)
+                ht = round(ht * rr)
+                st_size = 1.0 * min(wd, ht)
+                img = img.resize((wd, ht), Image.BICUBIC)
+            img = self.trans(img)
+            return img, len(keypoints), name
+
+    def train_transform(self, img, keypoints):
+        wd, ht = img.size
+        st_size = 1.0 * min(wd, ht)
+        # resize the image to fit the crop size
+        if st_size < self.c_size:
+            rr = 1.0 * self.c_size / st_size
+            wd = round(wd * rr)
+            ht = round(ht * rr)
+            st_size = 1.0 * min(wd, ht)
+            img = img.resize((wd, ht), Image.BICUBIC)
+            keypoints = keypoints * rr
+        assert st_size >= self.c_size, print(wd, ht)
+        assert len(keypoints) >= 0
+        i, j, h, w = random_crop(ht, wd, self.c_size, self.c_size)
+        img = F.crop(img, i, j, h, w)
+        if len(keypoints) > 0:
+            keypoints = keypoints - [j, i]
+            idx_mask = (keypoints[:, 0] >= 0) * (keypoints[:, 0] <= w) * \
+                       (keypoints[:, 1] >= 0) * (keypoints[:, 1] <= h)
+            keypoints = keypoints[idx_mask]
+        else:
+            keypoints = np.empty([0, 2])
+
+        gt_discrete = gen_discrete_map(h, w, keypoints)
+        down_w = w // self.d_ratio
+        down_h = h // self.d_ratio
+        gt_discrete = gt_discrete.reshape([down_h, self.d_ratio, down_w, self.d_ratio]).sum(axis=(1, 3))
+        assert np.sum(gt_discrete) == len(keypoints)
+
+        if len(keypoints) > 0:
+            if random.random() > 0.5:
+                img = F.hflip(img)
+                gt_discrete = np.fliplr(gt_discrete)
+                keypoints[:, 0] = w - keypoints[:, 0] - 1
+        else:
+            if random.random() > 0.5:
+                img = F.hflip(img)
+                gt_discrete = np.fliplr(gt_discrete)
+        gt_discrete = np.expand_dims(gt_discrete, 0)
+
+        return self.trans(img), torch.from_numpy(keypoints.copy()).float(), torch.from_numpy(
+            gt_discrete.copy()).float()
+'''
+class Crowd_jhu(Base):
+    def __init__(self, root_path, crop_size,
+                 downsample_ratio=8,
+                 method='train'):
+        super().__init__(root_path, crop_size, downsample_ratio)
+        self.method = method
+        if method not in ['train', 'val','test']:
+            raise Exception("not implement")
+
+        self.im_list = sorted(glob(os.path.join(self.root_path, 'images', '*.jpg')))
+
+        print('number of img [{}]: {}'.format(method, len(self.im_list)))
+
+    def __len__(self):
+        return len(self.im_list)
+
+    def __getitem__(self, item):
+        img_path = self.im_list[item]
+        name = os.path.basename(img_path).split('.')[0]
+        
+        gt_path = img_path.replace('.jpg', '.h5').replace('images', 'gt_density_map')
+        gt_file = h5py.File(gt_path)
+        gt_count = np.asarray(gt_file['gt_count'])
+
+        img = Image.open(img_path).convert('RGB')
+        
+        if self.method == 'train':
+            return self.train_transform(img, gt_count)
+        elif self.method == 'val':
+            img = self.trans(img)
+            return img, gt_count, name
+        elif self.method == 'test':
+            img = self.trans(img)
+            return img, gt_count, name
+        
+    def train_transform(self, img, keypoints):   
+        if random.random() > 0.5:
+            img = F.hflip(img)   
+
+        return self.trans(img), torch.from_numpy(keypoints.copy()).float()
