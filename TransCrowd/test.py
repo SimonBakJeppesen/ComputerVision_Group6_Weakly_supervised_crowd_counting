@@ -22,7 +22,6 @@ setup_seed(args.seed)
 
 logger = logging.getLogger('mnist_AutoML')
 
-
 def main(args):
     if args['dataset'] == 'ShanghaiA':
         train_file = './npydata/ShanghaiA_train.npy'

@@ -26,7 +26,7 @@ parser.add_argument('--pre', type=str, default=None,
 
 
 # Optimization specifications
-parser.add_argument('--batch_size', type=int, default=8,
+parser.add_argument('--batch_size', type=int, default=16,
                     help='input batch size for training')
 parser.add_argument('--weight_decay', type=float, default=1 * 1e-4,
                     help='weight decay')

@@ -273,4 +273,4 @@ if __name__ == '__main__':
         main(params)
     except Exception:
         with open('error_message.txt', 'w') as f:
-            traceback.print_exc(file=f)
+            traceback.print_exc()#file=f)

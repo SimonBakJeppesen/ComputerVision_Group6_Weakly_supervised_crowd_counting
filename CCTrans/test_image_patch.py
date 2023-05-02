@@ -12,7 +12,7 @@ def tensor_divideByfactor(img_tensor, factor=32):
     img_tensor = F.interpolate(img_tensor, (h, w), mode='bilinear', align_corners=True)
 
     return img_tensor
-def cal_new_tensor(img_tensor, min_size=256):
+def cal_new_tensor(img_tensor, min_size=512):
     _, _, h, w = img_tensor.size()
     if min(h, w) < min_size:
         ratio_h, ratio_w = min_size / h, min_size / w
@@ -26,15 +26,15 @@ parser = argparse.ArgumentParser(description='Test ')
 parser.add_argument('--device', default='1', help='assign device')
 parser.add_argument('--batch-size', type=int, default=1,
                         help='train batch size')
-parser.add_argument('--crop-size', type=int, default=256,
+parser.add_argument('--crop-size', type=int, default=512,
                     help='the crop size of the train image')
 parser.add_argument('--model-path', type=str, required=True,
                     help='saved model path')
 parser.add_argument('--data-path', type=str,
                     help='dataset path')
 
-parser.add_argument('--dataset', type=str, default='sha',
-                    help='dataset name: qnrf, nwpu, sha, shb, custom')
+parser.add_argument('--dataset', type=str, default='jhu',
+                    help='dataset name: qnrf, nwpu, sha, shb, custom, jhu')
 parser.add_argument('--pred-density-map-path', type=str, default='inference_results',
                     help='save predicted density maps when pred-density-map-path is not empty.')
 
@@ -53,6 +53,8 @@ def test(args, isSave = True):
         dataset = crowd.Crowd_sh(os.path.join(data_path, 'test_data'), crop_size, 8, method='val')
     elif args.dataset.lower() == 'custom':
         dataset = crowd.CustomDataset(data_path, crop_size, downsample_ratio=8, method='test')
+    elif args.dataset.lower() == 'jhu':
+        dataset = crowd.Crowd_jhu(os.path.join(data_path, 'test_data_CC'), crop_size, 8, method='test')
     else:
         raise NotImplementedError
     dataloader = torch.utils.data.DataLoader(dataset, 1, shuffle=False,
@@ -66,7 +68,7 @@ def test(args, isSave = True):
     result = []
     for inputs, count, name in dataloader:
         with torch.no_grad():
-            # nputs = cal_new_tensor(inputs, min_size=args.crop_size)
+            inputs = cal_new_tensor(inputs, min_size=args.crop_size)
             inputs = inputs.to(device)
             crop_imgs, crop_masks = [], []
             b, c, h, w = inputs.size()

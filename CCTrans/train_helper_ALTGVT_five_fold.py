@@ -37,7 +37,7 @@ class Trainer(object):
     def setup(self):
         args = self.args
         sub_dir = (
-            "ALTGVT/{}_12-1-input-{}_wot-{}_wtv-{}_reg-{}_nIter-{}_normCood-{}".format(
+            "ALTGVT/{}_input-{}_wot-{}_wtv-{}_reg-{}_nIter-{}_normCood-{}".format(
                 args.run_name,
                 args.crop_size,
                 args.wot,
