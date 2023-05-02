@@ -544,8 +544,10 @@ def alt_gvt_base(pretrained=False, **kwargs):
         patch_size=4, embed_dims=[96, 192, 384, 768], num_heads=[3, 6, 12, 24], mlp_ratios=[4, 4, 4, 4], qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 18, 2], wss=[7, 7, 7, 7], sr_ratios=[8, 4, 2, 1],
         **kwargs)
-
     model.default_cfg = _cfg()
+    checkpoint = torch.load('/home/cv09f23/ComputerVision_Group6_Weakly_supervised_crowd_counting/CCTrans/model_weights/alt_gvt_base.pth') # todo pass path as argument
+    model.load_state_dict(checkpoint, strict=False)
+    print("load transformer pretrained") 
     return model
 
 
@@ -566,6 +568,6 @@ def alt_gvt_large(pretrained=False, **kwargs):
 
 if __name__ == '__main__':
     model = alt_gvt_large(pretrained=True)
-    x = torch.ones(1, 3, 256, 256)
+    x = torch.ones(1, 3, 384, 384)
     mu, mu_norm = model(x)
     print(mu.size(), mu_norm.size())
