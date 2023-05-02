@@ -168,7 +168,7 @@ class Trainer(object):
             print(self.train_part)
             print(self.val_part)
             
-            if self.fold > 1:
+            if self.fold > 0:
             
                 self.start_epoch = 0
 

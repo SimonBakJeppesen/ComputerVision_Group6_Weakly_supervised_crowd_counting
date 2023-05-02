@@ -162,7 +162,7 @@ class Crowd_nwpu(Base):
             name = os.path.basename(img_path).split('.')[0]
             return img, name
 
-
+'''
 class Crowd_sh(Base):
     def __init__(self, root_path, crop_size,
                  downsample_ratio=8,
@@ -241,6 +241,52 @@ class Crowd_sh(Base):
 
         return self.trans(img), torch.from_numpy(keypoints.copy()).float(), torch.from_numpy(
             gt_discrete.copy()).float()
+    '''
+#for crop as TransCrowd
+class Crowd_sh(Base):
+    def __init__(self, root_path, crop_size,
+                 downsample_ratio=8,
+                 method='train'):
+        super().__init__(root_path, crop_size, downsample_ratio)
+        self.method = method
+        if method not in ['train', 'val']:
+            raise Exception("not implement")
+        
+        self.im_list = sorted(glob(os.path.join(self.root_path, 'images_crop_CC', '*.jpg')))
+        
+        print(self.root_path)
+        print('number of img [{}]: {}'.format(method, len(self.im_list)))
+
+    def __len__(self):
+        return len(self.im_list)
+
+    def __getitem__(self, item):
+        img_path = self.im_list[item]
+        name = os.path.basename(img_path).split('.')[0]
+        
+        gt_path = os.path.join(self.root_path, 'gt_density_map_crop_CC', '{}.h5'.format(name))
+        
+        #gt_path = img_path.replace('.jpg', '.h5').replace('images', 'gt_density_map_crop_CC') 
+        gt_file = h5py.File(gt_path)
+        gt_count = np.asarray(gt_file['gt_count'])
+
+        img = Image.open(img_path).convert('RGB')
+        
+        if self.method == 'train':
+            return self.train_transform(img, gt_count)
+        elif self.method == 'val':
+            img = self.trans(img)
+            return img, gt_count, name
+        
+        
+        
+    def train_transform(self, img, keypoints):   
+        if random.random() > 0.5:
+            img = F.hflip(img)   
+            
+        #img = F.rgb_to_grayscale(img)
+        
+        return self.trans(img), torch.from_numpy(keypoints.copy()).float()
 
 
 class CustomDataset(Base):
@@ -359,6 +405,8 @@ class CustomDataset(Base):
             gt_discrete.copy()).float()
     
 #added by group 6
+# for random crop
+'''
 class Crowd_jhu(Base):
     def __init__(self, root_path, crop_size,
                  downsample_ratio=8,
@@ -381,6 +429,7 @@ class Crowd_jhu(Base):
         gd_path = os.path.join(self.root_path, 'gt', '{}.txt'.format(name))
         img = Image.open(img_path).convert('RGB')
         keypoints_ = np.loadtxt(gd_path)
+        
         if keypoints_.ndim > 1:
             keypoints = keypoints_[:,:2]
         else:
@@ -410,7 +459,13 @@ class Crowd_jhu(Base):
             ht = round(ht * rr)
             st_size = 1.0 * min(wd, ht)
             img = img.resize((wd, ht), Image.BICUBIC)
-            keypoints = keypoints * rr
+            try:
+                keypoints = keypoints * rr
+            except:
+                print(keypoints)
+                print(rr)
+                
+                
         assert st_size >= self.c_size, print(wd, ht)
         assert len(keypoints) >= 0
         i, j, h, w = random_crop(ht, wd, self.c_size, self.c_size)
@@ -442,3 +497,42 @@ class Crowd_jhu(Base):
 
         return self.trans(img), torch.from_numpy(keypoints.copy()).float(), torch.from_numpy(
             gt_discrete.copy()).float()
+'''
+#for crop as TransCrowd
+class Crowd_jhu(Base):
+    def __init__(self, root_path, crop_size,
+                 downsample_ratio=8,
+                 method='train'):
+        super().__init__(root_path, crop_size, downsample_ratio)
+        self.method = method
+        if method not in ['train', 'val']:
+            raise Exception("not implement")
+
+        self.im_list = sorted(glob(os.path.join(self.root_path, 'images', '*.jpg')))
+
+        print('number of img [{}]: {}'.format(method, len(self.im_list)))
+
+    def __len__(self):
+        return len(self.im_list)
+
+    def __getitem__(self, item):
+        img_path = self.im_list[item]
+        name = os.path.basename(img_path).split('.')[0]
+        
+        gt_path = img_path.replace('.jpg', '.h5').replace('images', 'gt_density_map')
+        gt_file = h5py.File(gt_path)
+        gt_count = np.asarray(gt_file['gt_count'])
+
+        img = Image.open(img_path).convert('RGB')
+        
+        if self.method == 'train':
+            return self.train_transform(img, gt_count)
+        elif self.method == 'val':
+            img = self.trans(img)
+            return img, gt_count, name
+        
+    def train_transform(self, img, keypoints):   
+        if random.random() > 0.5:
+            img = F.hflip(img)   
+
+        return self.trans(img), torch.from_numpy(keypoints.copy()).float()
