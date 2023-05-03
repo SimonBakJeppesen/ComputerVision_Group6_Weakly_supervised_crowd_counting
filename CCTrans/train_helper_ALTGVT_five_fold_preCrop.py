@@ -10,7 +10,7 @@ from torch.utils.data import Subset
 import numpy as np
 from datetime import datetime
 import torch.nn.functional as F
-from datasets.crowd import Crowd_qnrf, Crowd_nwpu, Crowd_sh, CustomDataset
+from datasets.crowd_five_fold import Crowd_qnrf, Crowd_nwpu, Crowd_sh, CustomDataset
 from sklearn.model_selection import KFold ####
 
 #from models import vgg19
@@ -37,14 +37,14 @@ class Trainer(object):
     def setup(self):
         args = self.args
         sub_dir = (
-            "ALTGVT/{}_12-1-input-{}_wot-{}_wtv-{}_reg-{}_nIter-{}_normCood-{}".format(
+            "ALTGVT/{}-input-{}".format(
                 args.run_name,
                 args.crop_size,
-                args.wot,
-                args.wtv,
-                args.reg,
-                args.num_of_iter_in_ot,
-                args.norm_cood,
+                #args.wot,
+                #args.wtv,
+                #args.reg,
+                #args.num_of_iter_in_ot,
+                #args.norm_cood,
             )
         )
 
@@ -136,7 +136,7 @@ class Trainer(object):
         else:
             self.logger.info("random initialization")
         
-        
+        """
         self.ot_loss = OT_Loss(
             args.crop_size,
             downsample_ratio,
@@ -145,7 +145,7 @@ class Trainer(object):
             args.num_of_iter_in_ot,
             args.reg,
         )
-
+        """
         self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          #
         self.mse = nn.MSELoss().to(self.device)
         self.mae = nn.L1Loss().to(self.device)                              # 
@@ -202,7 +202,7 @@ class Trainer(object):
                         self.val_epoch()
 
     def train_epoch(self):
-        epoch_ot_loss = AverageMeter()
+        ###epoch_ot_loss = AverageMeter()
         epoch_ot_obj_value = AverageMeter()
         epoch_wd = AverageMeter()
         epoch_count_loss = AverageMeter()
@@ -241,61 +241,17 @@ class Trainer(object):
         for step, (inputs, points) in enumerate(self.dataloaderTrain):
             inputs = inputs.to(self.device)
             gd_count = np.array(points, dtype=np.float32)
-            
+            N = inputs.size(0)
 
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
-                # Compute OT loss.
-                #ot_loss = 0 #Delete this and uncomment below for original code
-                '''
-                ot_loss, wd, ot_obj_value = self.ot_loss(
-                    outputs_normed, outputs, points
-                )
-                ot_loss = ot_loss * self.args.wot
-                ot_obj_value = ot_obj_value * self.args.wot
-                epoch_ot_loss.update(ot_loss.item(), N)
-                epoch_ot_obj_value.update(ot_obj_value.item(), N)
-                epoch_wd.update(wd, N)
-                '''
-                '''
-                # Compute counting loss.
-                count_loss = self.mae(
+                
+                count_loss = self.smoothL1(                         # insert Smooth l1
                     outputs.sum(1).sum(1).sum(1),
                     torch.from_numpy(gd_count).float().to(self.device),
                 )
-                '''
-                
-                # insert Smooth l1
-                count_loss = self.smoothL1(
-                    outputs.sum(1).sum(1).sum(1),
-                    torch.from_numpy(gd_count).float().to(self.device),
-                )
-                
                 epoch_count_loss.update(count_loss.item(), N)
-                
-                #tv_loss = 0 #Delete this and uncomment below for original code
-                '''
-                # Compute TV loss.
-                gd_count_tensor = (
-                    torch.from_numpy(gd_count)
-                    .float()
-                    .to(self.device)
-                    .unsqueeze(1)
-                    .unsqueeze(2)
-                    .unsqueeze(3)
-                )
-                gt_discrete_normed = gt_discrete / (gd_count_tensor + 1e-6)
-                tv_loss = (
-                    self.tv_loss(outputs_normed, gt_discrete_normed)
-                    .sum(1)
-                    .sum(1)
-                    .sum(1)
-                    * torch.from_numpy(gd_count).float().to(self.device)
-                ).mean(0) * self.args.wtv
-                epoch_tv_loss.update(tv_loss.item(), N)
-                '''
-
-                loss = count_loss #+ ot_loss + tv_loss   # add this again for original code
+                loss = count_loss 
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -315,22 +271,19 @@ class Trainer(object):
                     {
                         "train/TOTAL_loss": loss,
                         "train/count_loss": count_loss,
-                        #"train/tv_loss": tv_loss,
                         "train/pred_err": pred_err,
                     },
                     step=self.epoch,
                 )
+        
         #self.scheduler.step()
         self.logger.info(
             "Epoch {} Train, Loss: {:.2f}, Wass Distance: {:.2f}, "
             "Count Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
                 self.epoch,
                 epoch_loss.get_avg(),
-                #epoch_ot_loss.get_avg(),
                 epoch_wd.get_avg(),
-                #epoch_ot_obj_value.get_avg(),
                 epoch_count_loss.get_avg(),
-                #epoch_tv_loss.get_avg(),
                 np.sqrt(epoch_mse.get_avg()),
                 epoch_mae.get_avg(),
                 time.time() - epoch_start,
@@ -341,7 +294,8 @@ class Trainer(object):
         model_state_dic = self.model.state_dict()
         save_path = os.path.join(
             self.save_dir, "{}_ckpt.tar".format(self.epoch))
-        '''
+        
+        '''      # Save model for every epoch
         torch.save(
             {
                 "epoch": self.epoch,
@@ -366,7 +320,6 @@ class Trainer(object):
                 inputs = inputs.to(self.device)
                 #gd_count_val = np.array([len(p) for p in points], dtype=np.float32)    
                 
-                
                 crop_imgs, crop_masks = [], []
                 b, c, h, w = inputs.size()
                 rh, rw = args.crop_size, args.crop_size
@@ -381,7 +334,6 @@ class Trainer(object):
                 crop_imgs, crop_masks = map(
                     lambda x: torch.cat(x, dim=0), (crop_imgs, crop_masks)
                 )
-                
                 
                 crop_preds = []
                 nz, bz = crop_imgs.size(0), args.batch_size
@@ -402,8 +354,7 @@ class Trainer(object):
 
                     crop_preds.append(crop_pred)
                 crop_preds = torch.cat(crop_preds, dim=0)
-                
-                     
+                  
                 #outputs, outputs_normed = self.model(inputs)
                 
                 # splice them to the original size

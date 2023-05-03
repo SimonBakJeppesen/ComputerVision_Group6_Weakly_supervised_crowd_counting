@@ -8,6 +8,7 @@ from torchvision import transforms
 import random
 import numpy as np
 import scipy.io as sio
+import h5py
 
 
 def random_crop(im_h, im_w, crop_h, crop_w):
@@ -160,7 +161,7 @@ class Crowd_nwpu(Base):
             img = self.trans(img)
             name = os.path.basename(img_path).split('.')[0]
             return img, name
-
+'''
 
 class Crowd_sh(Base):
     def __init__(self, root_path, crop_size,
@@ -241,8 +242,51 @@ class Crowd_sh(Base):
         print("Transform_crop")
         return self.trans(img), torch.from_numpy(keypoints.copy()).float(), torch.from_numpy(
             gt_discrete.copy()).float()
+    '''
 
+# for pre crop images with ground true .h5 files
+class Crowd_sh(Base):
+    def __init__(self, root_path, crop_size,
+                 downsample_ratio=8,
+                 method='train'):
+        super().__init__(root_path, crop_size, downsample_ratio)
+        self.method = method
+        if method not in ['train', 'val']:
+            raise Exception("not implement")
 
+        self.im_list = sorted(glob(os.path.join(self.root_path, 'images_crop_CC', '*.jpg')))
+
+        print('number of img [{}]: {}'.format(method, len(self.im_list)))
+
+    def __len__(self):
+        return len(self.im_list)
+
+    def __getitem__(self, item):
+        img_path = self.im_list[item]
+        name = os.path.basename(img_path).split('.')[0]
+        gt_path = img_path.replace('.jpg', '.h5').replace('images_crop_CC', 'gt_density_map_crop_CC')
+        gt_file = h5py.File(gt_path)
+        gt_count = np.asarray(gt_file['gt_count'])
+        
+        img = Image.open(img_path).convert('RGB')
+        
+        
+        if self.method == 'train':
+            return self.train_transform(img, gt_count)
+        elif self.method == 'val':
+            img = self.trans(img)
+            return img, gt_count, name
+        elif self.method == 'test':
+            img = self.trans(img)
+            return img, gt_count, name
+        
+    def train_transform(self, img, keypoints):
+        
+        if random.random() > 0.5:
+            img = F.hflip(img)   
+
+        return self.trans(img), torch.from_numpy(keypoints.copy()).float()
+    
 class CustomDataset(Base):
     '''
     Class that allows training for a custom dataset. The folder are designed in the following way:
