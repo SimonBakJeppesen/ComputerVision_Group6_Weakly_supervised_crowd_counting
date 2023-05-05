@@ -10,7 +10,7 @@ from torch.utils.data import Subset
 import numpy as np
 from datetime import datetime
 import torch.nn.functional as F
-from datasets.crowd_five_fold import Crowd_qnrf, Crowd_nwpu, Crowd_sh, CustomDataset
+from datasets.crowd_five_fold import Crowd_qnrf, Crowd_nwpu, Crowd_sh
 from sklearn.model_selection import KFold ####
 
 #from models import vgg19
@@ -120,21 +120,8 @@ class Trainer(object):
         )
         else : 
             wandb.init(mode="disabled")
+            
         
-        if args.resume:
-            self.logger.info("loading pretrained model from " + args.resume)
-            suf = args.resume.rsplit(".", 1)[-1]
-            if suf == "tar":
-                checkpoint = torch.load(args.resume, self.device)
-                self.model.load_state_dict(checkpoint["model_state_dict"])
-                self.optimizer.load_state_dict(
-                    checkpoint["optimizer_state_dict"])
-                self.start_epoch = checkpoint["epoch"] + 1
-            elif suf == "pth":
-                self.model.load_state_dict(
-                    torch.load(args.resume, self.device))
-        else:
-            self.logger.info("random initialization")
         
         """
         self.ot_loss = OT_Loss(
@@ -168,7 +155,7 @@ class Trainer(object):
             print(self.train_part)
             print(self.val_part)
             
-            if self.fold > 0:
+            if self.fold > 1:
             
                 self.start_epoch = 0
 
@@ -176,12 +163,28 @@ class Trainer(object):
                 self.logger = log_utils.get_logger(
                     os.path.join(self.save_dir, "train-{:s}-fold{}.log".format(time_str,self.fold))
                 )
-
+                
+                
                 self.model = ALTGVT.alt_gvt_large(pretrained=True)
                 self.model.to(self.device)
                 self.optimizer = optim.AdamW(
                     self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
                 )
+                
+                if args.resume:
+                    self.logger.info("loading pretrained model from " + args.resume)
+                    suf = args.resume.rsplit(".", 1)[-1]
+                    if suf == "tar":
+                        checkpoint = torch.load(args.resume, self.device)
+                        self.model.load_state_dict(checkpoint["model_state_dict"])
+                        self.optimizer.load_state_dict(
+                            checkpoint["optimizer_state_dict"])
+                        self.start_epoch = checkpoint["epoch"] + 1
+                    elif suf == "pth":
+                        self.model.load_state_dict(
+                        torch.load(args.resume, self.device))
+                else:
+                    self.logger.info("random initialization")
 
                 #OBS!!!! Implement scheduler here
                 #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[1000], gamma=0.3, last_epoch=-1)
@@ -213,12 +216,14 @@ class Trainer(object):
         epoch_start = time.time()
         self.model.train()  # Set model to training mode
         
-        train_dataset = Subset(self.datasets["train"],self.train_part)
-        val_dataset = Subset(self.datasets["val"],self.val_part)
+        print('Load images')
+        dataset_fivefold = self.datasets["train"]
+        train_dataset = Subset(dataset_fivefold,self.train_part)  # split train_part into train from list 80%
+        val_dataset = Subset(dataset_fivefold,self.val_part)      # split train_part into val 20%                       
             
-        #print('train_dataset')
-        #print(len(train_dataset))
-        #print(len(val_dataset))
+        print('train_dataset')
+        print(len(train_dataset))
+        print(len(val_dataset))
             
         self.dataloaderTrain = DataLoader(
             train_dataset,
@@ -238,7 +243,7 @@ class Trainer(object):
             pin_memory=(False),
         )
 
-        for step, (inputs, points) in enumerate(self.dataloaderTrain):
+        for step, (inputs, points) in enumerate(self.dataloaderTrain): # step from 0 to number of train images / batch size.
             inputs = inputs.to(self.device)
             gd_count = np.array(points, dtype=np.float32)
             N = inputs.size(0)
@@ -314,12 +319,13 @@ class Trainer(object):
         self.model.eval()  # Set model to evaluate mode
         epoch_res = []
         
-        for inputs, count, name in self.dataloaderVal:
+        for inputs, count in self.dataloaderVal:
             with torch.no_grad():
                 # nputs = cal_new_tensor(inputs, min_size=args.crop_size)
                 inputs = inputs.to(self.device)
                 #gd_count_val = np.array([len(p) for p in points], dtype=np.float32)    
                 
+                """
                 crop_imgs, crop_masks = [], []
                 b, c, h, w = inputs.size()
                 rh, rw = args.crop_size, args.crop_size
@@ -351,12 +357,12 @@ class Trainer(object):
                         )
                         / 64
                     )
-
+                
                     crop_preds.append(crop_pred)
                 crop_preds = torch.cat(crop_preds, dim=0)
-                  
-                #outputs, outputs_normed = self.model(inputs)
-                
+                """
+                outputs, outputs_normed = self.model(inputs)
+                """
                 # splice them to the original size
                 idx = 0
                 pred_map = torch.zeros([b, 1, h, w]).to(self.device)
@@ -371,7 +377,7 @@ class Trainer(object):
                 mask = crop_masks.sum(dim=0).unsqueeze(0)
                 outputs = pred_map / mask
                 
-                
+                """
                 res = count[0].item() - torch.sum(outputs).item()      # TO See
                 epoch_res.append(res)
                

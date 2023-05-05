@@ -2,7 +2,10 @@ import argparse
 import torch
 import os
 import numpy as np
-import datasets.crowd as crowd
+# if pre crop
+import datasets.crowd_five_fold as crowd
+# else
+#import datasets.crowd as crowd
 from Networks import ALTGVT
 import torch.nn.functional as F
 
@@ -23,7 +26,7 @@ def cal_new_tensor(img_tensor, min_size=512):
     return img_tensor
 
 parser = argparse.ArgumentParser(description='Test ')
-parser.add_argument('--device', default='1', help='assign device')
+parser.add_argument('--device', default='0', help='assign device')
 parser.add_argument('--batch-size', type=int, default=1,
                         help='train batch size')
 parser.add_argument('--crop-size', type=int, default=512,
@@ -32,9 +35,8 @@ parser.add_argument('--model-path', type=str, required=True,
                     help='saved model path')
 parser.add_argument('--data-path', type=str,
                     help='dataset path')
-
-parser.add_argument('--dataset', type=str, default='jhu',
-                    help='dataset name: qnrf, nwpu, sha, shb, custom, jhu')
+parser.add_argument('--dataset', type=str, default='sha_precrop',
+                    help='dataset name: qnrf, nwpu, sha, sha_PreCrop, shb, custom, jhu')
 parser.add_argument('--pred-density-map-path', type=str, default='inference_results',
                     help='save predicted density maps when pred-density-map-path is not empty.')
 
@@ -50,6 +52,9 @@ def test(args, isSave = True):
     elif args.dataset.lower() == 'nwpu':
         dataset = crowd.Crowd_nwpu(os.path.join(data_path, 'val'), crop_size, 8, method='val')
     elif args.dataset.lower() == 'sha' or args.dataset.lower() == 'shb':
+        dataset = crowd.Crowd_sh(os.path.join(data_path, 'test_data'), crop_size, 8, method='val')
+        # preCrop
+    elif args.dataset.lower() == 'sha_precrop':
         dataset = crowd.Crowd_sh(os.path.join(data_path, 'test_data'), crop_size, 8, method='val')
     elif args.dataset.lower() == 'custom':
         dataset = crowd.CustomDataset(data_path, crop_size, downsample_ratio=8, method='test')

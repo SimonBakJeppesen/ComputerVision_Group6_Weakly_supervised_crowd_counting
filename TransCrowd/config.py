@@ -26,7 +26,7 @@ parser.add_argument('--pre', type=str, default=None,
 
 
 # Optimization specifications
-parser.add_argument('--batch_size', type=int, default=16,
+parser.add_argument('--batch_size', type=int, default=8,
                     help='input batch size for training')
 parser.add_argument('--weight_decay', type=float, default=1 * 1e-4,
                     help='weight decay')
@@ -42,7 +42,7 @@ parser.add_argument('--gpu_id', type=str, default='1',
                     help='gpu id')
 
 # nni config
-parser.add_argument('--lr', type=float, default=1e-5,
+parser.add_argument('--lr', type=float, default=0.25e-5,
                     help='learning rate')
 parser.add_argument('--model_type', type=str, default='token',
                     help='model type')
