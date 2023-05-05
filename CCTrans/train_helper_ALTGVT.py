@@ -11,7 +11,7 @@ from torch.utils.data.dataloader import default_collate
 import numpy as np
 from datetime import datetime
 import torch.nn.functional as F
-from datasets.crowd import Crowd_qnrf, Crowd_nwpu, Crowd_sh, CustomDataset, Crowd_jhu
+from datasets.crowd import Crowd_sh, Crowd_jhu
 
 #from models import vgg19
 from Networks import ALTGVT
@@ -27,8 +27,8 @@ def train_collate(batch):
     points = transposed_batch[
         1
     ]  # the number of points is not fixed, keep it as a list of tensor
-    gt_discretes = torch.stack(transposed_batch[2], 0)
-    return images, points, gt_discretes
+    #gt_discretes = torch.stack(transposed_batch[2], 0)
+    return images, points
 
 
 class Trainer(object):
@@ -38,14 +38,14 @@ class Trainer(object):
     def setup(self):
         args = self.args
         sub_dir = (
-            "ALTGVT/{}_12-1-input-{}_wot-{}_wtv-{}_reg-{}_nIter-{}_normCood-{}".format(
+            "ALTGVT/{}_input-{}".format(
                 args.run_name,
                 args.crop_size,
-                args.wot,
-                args.wtv,
-                args.reg,
-                args.num_of_iter_in_ot,
-                args.norm_cood,
+                #args.wot,
+                #args.wtv,
+                #args.reg,
+                #args.num_of_iter_in_ot,
+                #args.norm_cood,
             )
         )
 
@@ -68,24 +68,8 @@ class Trainer(object):
             raise Exception("gpu is not available")
 
         downsample_ratio = 8
-        if args.dataset.lower() == "qnrf":
-            self.datasets = {
-                x: Crowd_qnrf(
-                    os.path.join(
-                        args.data_dir, x), args.crop_size, downsample_ratio, x
-                )
-                for x in ["train", "val"]
-            }
-        elif args.dataset.lower() == "nwpu":
-            self.datasets = {
-                x: Crowd_(
-                    os.path.join(
-                        args.data_dir, x), args.crop_size, downsample_ratio, x
-                )
-                for x in ["train", "val"]
-            }
-        ######## added by group 6
-        elif args.dataset.lower() == "jhu":
+        
+        if args.dataset.lower() == "jhu":
             self.datasets = {
                 "train": Crowd_jhu(
                     os.path.join(args.data_dir, "train_data_CC"),
@@ -100,7 +84,7 @@ class Trainer(object):
                     "val",
                 ),
             }
-        ########
+        
         elif args.dataset.lower() == "sha" or args.dataset.lower() == "shb":
             self.datasets = {
                 "train": Crowd_sh(
@@ -116,22 +100,13 @@ class Trainer(object):
                     "val",
                 ),
             }
-        elif args.dataset.lower() == "custom":
-            self.datasets = {
-                "train": CustomDataset(
-                    args.data_dir, args.crop_size, downsample_ratio, method="train"
-                ),
-                "val": CustomDataset(
-                    args.data_dir, args.crop_size, downsample_ratio, method="valid"
-                ),
-            }
         else:
             raise NotImplementedError
 
         self.dataloaders = {
             x: DataLoader(
                 self.datasets[x],
-                collate_fn=(default_collate if x ==
+                collate_fn=(train_collate if x ==                                 ######### if JHU change to default
                             "train" else default_collate),
                 batch_size=(args.batch_size if x == "train" else 1),
                 shuffle=(True if x == "train" else False),
@@ -140,18 +115,16 @@ class Trainer(object):
             )
             for x in ["train", "val"]
         }
+        
         self.model = ALTGVT.alt_gvt_large(pretrained=True)
         self.model.to(self.device)
         self.optimizer = optim.AdamW(
             self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
         )
          #OBS!!!! Implement scheduler here
-        self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[100, 200, 300, 400], gamma=0.8, last_epoch=-1)
+        #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[100, 200, 300, 400], gamma=0.8, last_epoch=-1)
        
-        
-        
         self.start_epoch = 0
-        
 
         # check if wandb has to log
         if args.wandb:
@@ -160,7 +133,6 @@ class Trainer(object):
         )
         else : 
             wandb.init(mode="disabled")
-    
 
         if args.resume:
             self.logger.info("loading pretrained model from " + args.resume)
@@ -177,7 +149,7 @@ class Trainer(object):
         else:
             self.logger.info("random initialization")
         
-        
+        '''
         self.ot_loss = OT_Loss(
             args.crop_size,
             downsample_ratio,
@@ -186,11 +158,11 @@ class Trainer(object):
             args.num_of_iter_in_ot,
             args.reg,
         )
-        
+        '''
 
-        self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          #
+        #self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          #
         self.mse = nn.MSELoss().to(self.device)
-        self.mae = nn.L1Loss().to(self.device)                              # 
+        #self.mae = nn.L1Loss().to(self.device)                              # 
         self.smoothL1 = nn.SmoothL1Loss(beta=self.args.beta).to(self.device)
         self.save_list = Save_Handle(max_num=1)
         self.best_mae = np.inf
@@ -225,7 +197,6 @@ class Trainer(object):
         for step, (inputs, points) in enumerate(self.dataloaders["train"]):
             number += 1
             inputs = inputs.to(self.device)
-            #inputs = torch.nn.functional.interpolate(inputs, size=None, scale_factor=1.34, mode='nearest', align_corners=None, recompute_scale_factor=None, antialias=False)
             gd_count = np.array(points, dtype=np.float32)
            
             N = inputs.size(0)
@@ -294,6 +265,7 @@ class Trainer(object):
                     torch.sum(outputs.view(N, -1),
                               dim=1).detach().cpu().numpy()
                 )
+                
                 pred_err = pred_count - gd_count
                 epoch_loss.update(loss.item(), N)
                 epoch_mse.update(np.mean(pred_err * pred_err), N)
@@ -309,7 +281,7 @@ class Trainer(object):
                     },
                     step=self.epoch,
                 )
-        self.scheduler.step()
+        #self.scheduler.step()
         self.logger.info(
             "Epoch {} Train, Loss: {:.2f}, Wass Distance: {:.2f}, "
             "Count Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
