@@ -18,35 +18,6 @@ def random_crop(im_h, im_w, crop_h, crop_w):
     j = random.randint(0, res_w)
     return i, j, crop_h, crop_w
 
-
-def gen_discrete_map(im_height, im_width, points):
-    """
-        func: generate the discrete map.
-        points: [num_gt, 2], for each row: [width, height]
-        """
-    discrete_map = np.zeros([im_height, im_width], dtype=np.float32)
-    h, w = discrete_map.shape[:2]
-    num_gt = points.shape[0]
-    if num_gt == 0:
-        return discrete_map
-    
-    # fast create discrete map
-    points_np = np.array(points).round().astype(int)
-    p_h = np.minimum(points_np[:, 1], np.array([h-1]*num_gt).astype(int))
-    p_w = np.minimum(points_np[:, 0], np.array([w-1]*num_gt).astype(int))
-    p_index = torch.from_numpy(p_h* im_width + p_w).to(torch.int64)
-    discrete_map = torch.zeros(im_width * im_height).scatter_add_(0, index=p_index, src=torch.ones(im_width*im_height)).view(im_height, im_width).numpy()
-
-    ''' slow method
-    for p in points:
-        p = np.round(p).astype(int)
-        p[0], p[1] = min(h - 1, p[1]), min(w - 1, p[0])
-        discrete_map[p[0], p[1]] += 1
-    '''
-    assert np.sum(discrete_map) == num_gt
-    return discrete_map
-
-
 class Base(data.Dataset):
     def __init__(self, root_path, crop_size, downsample_ratio=8):
 
@@ -102,67 +73,36 @@ class Base(data.Dataset):
             gt_discrete.copy()).float()
 
 
-class Crowd_qnrf(Base):
-    def __init__(self, root_path, crop_size,
-                 downsample_ratio=8,
-                 method='train'):
-        super().__init__(root_path, crop_size, downsample_ratio)
-        self.method = method
-        self.im_list = sorted(glob(os.path.join(self.root_path, '*.jpg')))
-        print('number of img: {}'.format(len(self.im_list)))
-        if method not in ['train', 'val']:
-            raise Exception("not implement")
 
-    def __len__(self):
-        return len(self.im_list)
+def gen_discrete_map(im_height, im_width, points):
+    """
+        func: generate the discrete map.
+        points: [num_gt, 2], for each row: [width, height]
+        """
+    discrete_map = np.zeros([im_height, im_width], dtype=np.float32)
+    h, w = discrete_map.shape[:2]
+    num_gt = points.shape[0]
+    if num_gt == 0:
+        return discrete_map
+    
+    # fast create discrete map
+    points_np = np.array(points).round().astype(int)
+    p_h = np.minimum(points_np[:, 1], np.array([h-1]*num_gt).astype(int))
+    p_w = np.minimum(points_np[:, 0], np.array([w-1]*num_gt).astype(int))
+    p_index = torch.from_numpy(p_h* im_width + p_w).to(torch.int64)
+    discrete_map = torch.zeros(im_width * im_height).scatter_add_(0, index=p_index, src=torch.ones(im_width*im_height)).view(im_height, im_width).numpy()
 
-    def __getitem__(self, item):
-        img_path = self.im_list[item]
-        gd_path = img_path.replace('jpg', 'npy')
-        img = Image.open(img_path).convert('RGB')
-        if self.method == 'train':
-            keypoints = np.load(gd_path)
-            return self.train_transform(img, keypoints)
-        elif self.method == 'val':
-            keypoints = np.load(gd_path)
-            img = self.trans(img)
-            name = os.path.basename(img_path).split('.')[0]
-            return img, len(keypoints), name
+    ''' slow method
+    for p in points:
+        p = np.round(p).astype(int)
+        p[0], p[1] = min(h - 1, p[1]), min(w - 1, p[0])
+        discrete_map[p[0], p[1]] += 1
+    '''
+    assert np.sum(discrete_map) == num_gt
+    return discrete_map
 
-
-class Crowd_nwpu(Base):
-    def __init__(self, root_path, crop_size,
-                 downsample_ratio=8,
-                 method='train'):
-        super().__init__(root_path, crop_size, downsample_ratio)
-        self.method = method
-        self.im_list = sorted(glob(os.path.join(self.root_path, '*.jpg')))
-        print('number of img: {}'.format(len(self.im_list)))
-
-        if method not in ['train', 'val', 'test']:
-            raise Exception("not implement")
-
-    def __len__(self):
-        return len(self.im_list)
-
-    def __getitem__(self, item):
-        img_path = self.im_list[item]
-        gd_path = img_path.replace('jpg', 'npy')
-        img = Image.open(img_path).convert('RGB')
-        if self.method == 'train':
-            keypoints = np.load(gd_path)
-            return self.train_transform(img, keypoints)
-        elif self.method == 'val':
-            keypoints = np.load(gd_path)
-            img = self.trans(img)
-            name = os.path.basename(img_path).split('.')[0]
-            return img, len(keypoints), name
-        elif self.method == 'test':
-            img = self.trans(img)
-            name = os.path.basename(img_path).split('.')[0]
-            return img, name
+# for five fold non crop images         ##################################
 '''
-
 class Crowd_sh(Base):
     def __init__(self, root_path, crop_size,
                  downsample_ratio=8,
@@ -244,7 +184,7 @@ class Crowd_sh(Base):
             gt_discrete.copy()).float()
     '''
 
-# for pre crop images with ground true .h5 files
+# for pre crop images with ground true .h5 files           ##################################
 class Crowd_sh(Base):
     def __init__(self, root_path, crop_size,
                  downsample_ratio=8,
@@ -273,15 +213,14 @@ class Crowd_sh(Base):
         if self.method == 'train':
             return self.train_transform(img, gt_count)
         elif self.method == 'val':
+            #return self.trans(img), torch.from_numpy(gt_count.copy()).float()
             img = self.trans(img)
             return img, gt_count, name
-        elif self.method == 'test':
-            img = self.trans(img)
-            return img, gt_count, name
+            ### Skal laves om så både test_images_patch og train kan kalde.
         
     def train_transform(self, img, keypoints):
-        
         if random.random() > 0.5:
             img = F.hflip(img)   
-
         return self.trans(img), torch.from_numpy(keypoints.copy()).float()
+    
+   

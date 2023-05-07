@@ -42,7 +42,7 @@ parser.add_argument('--gpu_id', type=str, default='1',
                     help='gpu id')
 
 # nni config
-parser.add_argument('--lr', type=float, default=0.25e-5,
+parser.add_argument('--lr', type=float, default=4 * 1e-5,
                     help='learning rate')
 parser.add_argument('--model_type', type=str, default='token',
                     help='model type')

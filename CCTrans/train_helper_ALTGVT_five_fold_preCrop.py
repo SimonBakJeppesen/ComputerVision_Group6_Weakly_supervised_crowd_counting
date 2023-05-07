@@ -10,7 +10,7 @@ from torch.utils.data import Subset
 import numpy as np
 from datetime import datetime
 import torch.nn.functional as F
-from datasets.crowd_five_fold import Crowd_qnrf, Crowd_nwpu, Crowd_sh
+from datasets.crowd_five_fold import Crowd_sh
 from sklearn.model_selection import KFold ####
 
 #from models import vgg19
@@ -67,23 +67,7 @@ class Trainer(object):
             raise Exception("gpu is not available")
 
         downsample_ratio = 8
-        if args.dataset.lower() == "qnrf":
-            self.datasets = {
-                x: Crowd_qnrf(
-                    os.path.join(
-                        args.data_dir, x), args.crop_size, downsample_ratio, x
-                )
-                for x in ["train", "val"]
-            }
-        elif args.dataset.lower() == "nwpu":
-            self.datasets = {
-                x: Crowd_nwpu(
-                    os.path.join(
-                        args.data_dir, x), args.crop_size, downsample_ratio, x
-                )
-                for x in ["train", "val"]
-            }
-        elif args.dataset.lower() == "sha" or args.dataset.lower() == "shb":
+        if args.dataset.lower() == "sha" or args.dataset.lower() == "shb":
             self.datasets = {
                 "train": Crowd_sh(
                     os.path.join(args.data_dir, "train_data"),
@@ -96,15 +80,6 @@ class Trainer(object):
                     args.crop_size,
                     downsample_ratio,
                     "val",
-                ),
-            }
-        elif args.dataset.lower() == "custom":
-            self.datasets = {
-                "train": CustomDataset(
-                    args.data_dir, args.crop_size, downsample_ratio, method="train"
-                ),
-                "val": CustomDataset(
-                    args.data_dir, args.crop_size, downsample_ratio, method="valid"
                 ),
             }
         else:
@@ -217,9 +192,8 @@ class Trainer(object):
         self.model.train()  # Set model to training mode
         
         print('Load images')
-        dataset_fivefold = self.datasets["train"]
-        train_dataset = Subset(dataset_fivefold,self.train_part)  # split train_part into train from list 80%
-        val_dataset = Subset(dataset_fivefold,self.val_part)      # split train_part into val 20%                       
+        train_dataset = Subset(self.datasets["train"],self.train_part)  # split train_part into train from list (random horisontal flip)80%
+        val_dataset = Subset(self.datasets["val"],self.val_part)      # split train_part into val (non flip)20%                       
             
         print('train_dataset')
         print(len(train_dataset))
