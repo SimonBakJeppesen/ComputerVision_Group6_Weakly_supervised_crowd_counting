@@ -3,7 +3,7 @@ import torch
 import os
 import numpy as np
 # if pre crop
-import datasets.crowd_five_fold as crowd
+import datasets.crowd as crowd
 # else
 #import datasets.crowd as crowd
 from Networks import ALTGVT
@@ -29,13 +29,13 @@ parser = argparse.ArgumentParser(description='Test ')
 parser.add_argument('--device', default='0', help='assign device')
 parser.add_argument('--batch-size', type=int, default=1,
                         help='train batch size')
-parser.add_argument('--crop-size', type=int, default=512,
+parser.add_argument('--crop-size', type=int, default=256,
                     help='the crop size of the train image')
 parser.add_argument('--model-path', type=str, required=True,
                     help='saved model path')
 parser.add_argument('--data-path', type=str,
                     help='dataset path')
-parser.add_argument('--dataset', type=str, default='sha_precrop',
+parser.add_argument('--dataset', type=str, default='sha',
                     help='dataset name: qnrf, nwpu, sha, sha_PreCrop, shb, custom, jhu')
 parser.add_argument('--pred-density-map-path', type=str, default='inference_results',
                     help='save predicted density maps when pred-density-map-path is not empty.')
