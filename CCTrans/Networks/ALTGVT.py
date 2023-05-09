@@ -130,19 +130,10 @@ class GroupAttention(nn.Module):
         self.ws = ws
 
     def forward(self, x, H, W):
-        print(H)
-        print(W)
         B, N, C = x.shape
         h_group, w_group = H // self.ws, W // self.ws
-        print(B)
-        print(h_group)
-        print(self.ws)
-        print(w_group)
-        print(C)
         total_groups = h_group * w_group
-        print(x.ndim)
         x = x.reshape(B, h_group, self.ws, w_group, self.ws, C).transpose(2, 3)
-        print(x.ndim)
         
         qkv = self.qkv(x).reshape(B, total_groups, -1, 3, self.num_heads, C // self.num_heads).permute(3, 0, 1, 4, 2, 5)
         # B, hw, ws*ws, 3, n_head, head_dim -> 3, B, hw, n_head, ws*ws, head_dim

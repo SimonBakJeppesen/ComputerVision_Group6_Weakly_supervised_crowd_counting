@@ -20,13 +20,13 @@ def parse_args():
                         help='the weight decay')
     parser.add_argument('--resume', default='', type=str,
                         help='the path of resume training model')
-    parser.add_argument('--max-epoch', type=int, default=1500,
+    parser.add_argument('--max-epoch', type=int, default=1000,
                         help='max training epoch')
     parser.add_argument('--val-epoch', type=int, default=1,
                         help='the num of steps to log training information')
     parser.add_argument('--val-start', type=int, default=0,
                         help='the epoch start to val')
-    parser.add_argument('--batch-size', type=int, default=2,
+    parser.add_argument('--batch-size', type=int, default=8,
                         help='train batch size')
     parser.add_argument('--device', default='1', help='assign device')
     parser.add_argument('--num-workers', type=int, default=16,

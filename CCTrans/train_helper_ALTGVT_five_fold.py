@@ -117,6 +117,9 @@ class Trainer(object):
             print(self.train_part)
             print(self.val_part)
             
+            self.best_mae = np.inf
+            self.best_mse = np.inf
+        
             if self.fold > 2:
             
                 self.start_epoch = 0
@@ -131,7 +134,7 @@ class Trainer(object):
                 self.optimizer = optim.AdamW(
                     self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
                 )
-                
+              
                 if args.resume:
                     self.logger.info("loading pretrained model from " + args.resume)
                     suf = args.resume.rsplit(".", 1)[-1]
@@ -146,12 +149,9 @@ class Trainer(object):
                         torch.load(args.resume, self.device))
                 else:
                     self.logger.info("random initialization")
-
+                
                 #OBS!!!! Implement scheduler here
                 #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[10], gamma=0.33, last_epoch=-1)
-
-                self.best_mae = np.inf
-                self.best_mse = np.inf
 
                 print('Beginning {} fold'.format(self.fold))
 
