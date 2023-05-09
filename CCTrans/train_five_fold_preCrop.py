@@ -12,7 +12,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Train')
     parser.add_argument('--data-dir', default='/home/cv06f23/Dataset/ShanghaiTech/ShanghaiTech/part_A', help='data path')
     parser.add_argument('--dataset', default='sha', help='dataset name: qnrf, nwpu, sha, shb, custom')
-    parser.add_argument('--lr', type=float, default=1*1e-5,
+    parser.add_argument('--lr', type=float, default=3*1e-5,
                         help='the initial learning rate')
     parser.add_argument('--weight-decay', type=float, default=1*1e-4,
                         help='the weight decay')

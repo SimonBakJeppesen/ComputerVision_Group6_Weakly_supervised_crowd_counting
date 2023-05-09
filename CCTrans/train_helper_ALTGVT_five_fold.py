@@ -1,17 +1,17 @@
 import os
 import time
+import sys
 import torch
 import torch.nn as nn
-import numpy as np
-from scipy import ndimage
-import sys 
 from torch import optim
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
+from torch.utils.data import Subset
 import numpy as np
 from datetime import datetime
 import torch.nn.functional as F
-from datasets.crowd import Crowd_sh, Crowd_jhu
+from datasets.crowd import Crowd_sh
+from sklearn.model_selection import KFold ####
 
 #from models import vgg19
 from Networks import ALTGVT
@@ -20,15 +20,14 @@ from utils.pytorch_utils import Save_Handle, AverageMeter
 import utils.log_utils as log_utils
 import wandb
 
-
 def train_collate(batch):
     transposed_batch = list(zip(*batch))
     images = torch.stack(transposed_batch[0], 0)
     points = transposed_batch[
         1
     ]  # the number of points is not fixed, keep it as a list of tensor
-    #gt_discretes = torch.stack(transposed_batch[2], 0)
-    return images, points
+    gt_discretes = torch.stack(transposed_batch[2], 0)
+    return images, points, gt_discretes
 
 
 class Trainer(object):
@@ -38,7 +37,7 @@ class Trainer(object):
     def setup(self):
         args = self.args
         sub_dir = (
-            "ALTGVT/{}_input-{}".format(
+            "ALTGVT/{}-input-{}".format(
                 args.run_name,
                 args.crop_size,
                 #args.wot,
@@ -68,24 +67,7 @@ class Trainer(object):
             raise Exception("gpu is not available")
 
         downsample_ratio = 8
-        
-        if args.dataset.lower() == "jhu":
-            self.datasets = {
-                "train": Crowd_jhu(
-                    os.path.join(args.data_dir, "train_data_CC"),
-                    args.crop_size,
-                    downsample_ratio,
-                    "train",
-                ),
-                "val": Crowd_jhu(
-                    os.path.join(args.data_dir, "val_data_CC"),
-                    args.crop_size,
-                    downsample_ratio,
-                    "val",
-                ),
-            }
-        
-        elif args.dataset.lower() == "sha" or args.dataset.lower() == "shb":
+        if args.dataset.lower() == "sha" or args.dataset.lower() == "shb":
             self.datasets = {
                 "train": Crowd_sh(
                     os.path.join(args.data_dir, "train_data"),
@@ -94,7 +76,7 @@ class Trainer(object):
                     "train",
                 ),
                 "val": Crowd_sh(
-                    os.path.join(args.data_dir, "test_data"),
+                    os.path.join(args.data_dir, "train_data"),
                     args.crop_size,
                     downsample_ratio,
                     "val",
@@ -103,29 +85,8 @@ class Trainer(object):
         else:
             raise NotImplementedError
 
-        self.dataloaders = {
-            x: DataLoader(
-                self.datasets[x],
-                collate_fn=(train_collate if x ==                                 ######### if JHU change to default
-                            "train" else default_collate),
-                batch_size=(args.batch_size if x == "train" else 1),
-                shuffle=(True if x == "train" else False),
-                num_workers=args.num_workers * self.device_count,
-                pin_memory=(True if x == "train" else False),
-            )
-            for x in ["train", "val"]
-        }
-        
-        self.model = ALTGVT.alt_gvt_large(pretrained=True)
-        self.model.to(self.device)
-        self.optimizer = optim.AdamW(
-            self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
-        )
-         #OBS!!!! Implement scheduler here
-        #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[100, 200, 300, 400], gamma=0.8, last_epoch=-1)
-       
         self.start_epoch = 0
-
+        
         # check if wandb has to log
         if args.wandb:
             self.wandb_run = wandb.init(
@@ -133,56 +94,79 @@ class Trainer(object):
         )
         else : 
             wandb.init(mode="disabled")
-
-        if args.resume:
-            self.logger.info("loading pretrained model from " + args.resume)
-            suf = args.resume.rsplit(".", 1)[-1]
-            if suf == "tar":
-                checkpoint = torch.load(args.resume, self.device)
-                self.model.load_state_dict(checkpoint["model_state_dict"])
-                self.optimizer.load_state_dict(
-                    checkpoint["optimizer_state_dict"])
-                self.start_epoch = checkpoint["epoch"] + 1
-            elif suf == "pth":
-                self.model.load_state_dict(
-                    torch.load(args.resume, self.device))
-        else:
-            self.logger.info("random initialization")
-        
-        '''
-        self.ot_loss = OT_Loss(
-            args.crop_size,
-            downsample_ratio,
-            args.norm_cood,
-            self.device,
-            args.num_of_iter_in_ot,
-            args.reg,
-        )
-        '''
-
-        #self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          #
+            
+        self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          #
         self.mse = nn.MSELoss().to(self.device)
-        #self.mae = nn.L1Loss().to(self.device)                              # 
+        self.mae = nn.L1Loss().to(self.device)                              # 
         self.smoothL1 = nn.SmoothL1Loss(beta=self.args.beta).to(self.device)
         self.save_list = Save_Handle(max_num=1)
         self.best_mae = np.inf
         self.best_mse = np.inf
-        # self.best_count = 0
+        self.best_count = 0
 
     def train(self):
         """training process"""
         args = self.args
-        for epoch in range(self.start_epoch, args.max_epoch + 1):
-            self.logger.info(
-                "-" * 5 + "Epoch {}/{}".format(epoch, args.max_epoch) + "-" * 5
-            )
-            self.epoch = epoch
-            self.train_epoch()
-            if epoch % args.val_epoch == 0 and epoch >= args.val_start:
-                self.val_epoch()
+        kfold = KFold(n_splits=5, shuffle=True, random_state=45)            # Kfold
+        
+        for self.fold, (self.train_part, self.val_part) in enumerate(kfold.split(self.datasets["train"])):
+            self.fold += 1
+            if self.fold in [6]:
+                continue
+            
+            print(self.train_part)
+            print(self.val_part)
+            
+            if self.fold > 2:
+            
+                self.start_epoch = 0
+
+                time_str = datetime.strftime(datetime.now(), "%m%d-%H%M%S")
+                self.logger = log_utils.get_logger(
+                    os.path.join(self.save_dir, "train-{:s}-fold{}.log".format(time_str,self.fold))
+                )
+                
+                self.model = ALTGVT.alt_gvt_large(pretrained=True)
+                self.model.to(self.device)
+                self.optimizer = optim.AdamW(
+                    self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
+                )
+                
+                if args.resume:
+                    self.logger.info("loading pretrained model from " + args.resume)
+                    suf = args.resume.rsplit(".", 1)[-1]
+                    if suf == "tar":
+                        checkpoint = torch.load(args.resume, self.device)
+                        self.model.load_state_dict(checkpoint["model_state_dict"])
+                        self.optimizer.load_state_dict(
+                            checkpoint["optimizer_state_dict"])
+                        self.start_epoch = checkpoint["epoch"] + 1
+                    elif suf == "pth":
+                        self.model.load_state_dict(
+                        torch.load(args.resume, self.device))
+                else:
+                    self.logger.info("random initialization")
+
+                #OBS!!!! Implement scheduler here
+                #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[10], gamma=0.33, last_epoch=-1)
+
+                self.best_mae = np.inf
+                self.best_mse = np.inf
+
+                print('Beginning {} fold'.format(self.fold))
+
+                args = self.args
+                for epoch in range(self.start_epoch, args.max_epoch + 1):
+                    self.logger.info(
+                        "-" * 5 + "Epoch {}/{}".format(epoch, args.max_epoch) + "-" * 5
+                    )
+                    self.epoch = epoch
+                    self.train_epoch()
+                    if epoch % args.val_epoch == 0 and epoch >= args.val_start:
+                        self.val_epoch()
 
     def train_epoch(self):
-        epoch_ot_loss = AverageMeter()
+        ###epoch_ot_loss = AverageMeter()
         epoch_ot_obj_value = AverageMeter()
         epoch_wd = AverageMeter()
         epoch_count_loss = AverageMeter()
@@ -193,69 +177,46 @@ class Trainer(object):
         epoch_start = time.time()
         self.model.train()  # Set model to training mode
         
-        number = 0
-        for step, (inputs, points) in enumerate(self.dataloaders["train"]):
-            number += 1
+
+        train_dataset = Subset(self.datasets["train"],self.train_part)  # split train_part into train from list 80%
+        val_dataset = Subset(self.datasets["val"],self.val_part)      # split train_part into val 20%                       
+            
+        print('train_dataset')
+        print(len(train_dataset))
+        print(len(val_dataset))
+            
+        self.dataloaderTrain = DataLoader(
+            train_dataset,
+            collate_fn=(default_collate),
+            batch_size=(self.args.batch_size),
+            shuffle=(True),
+            num_workers=self.args.num_workers * self.device_count,
+            pin_memory=(True),
+        )
+            
+        self.dataloaderVal = DataLoader(
+            val_dataset,
+            collate_fn=(default_collate),
+            batch_size=(1),
+            shuffle=(False),
+            num_workers=self.args.num_workers * self.device_count,
+            pin_memory=(False),
+        )
+
+        for step, (inputs, points, name) in enumerate(self.dataloaderTrain): # step from 0 to number of train images / batch size.
             inputs = inputs.to(self.device)
             gd_count = np.array(points, dtype=np.float32)
-           
             N = inputs.size(0)
-            if number % 100 == 0:
-                print(number)
-      
+            print(name)
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
-                # Compute OT loss.
-                #ot_loss = 0 #Delete this and uncomment below for original code
-                '''
-                ot_loss, wd, ot_obj_value = self.ot_loss(
-                    outputs_normed, outputs, points
-                )
-                ot_loss = ot_loss * self.args.wot
-                ot_obj_value = ot_obj_value * self.args.wot
-                epoch_ot_loss.update(ot_loss.item(), N)
-                epoch_ot_obj_value.update(ot_obj_value.item(), N)
-                epoch_wd.update(wd, N)
-                '''
-                '''
-                # Compute counting loss.
-                count_loss = self.mae(
+                
+                count_loss = self.smoothL1(                         # insert Smooth l1
                     outputs.sum(1).sum(1).sum(1),
                     torch.from_numpy(gd_count).float().to(self.device),
                 )
-                '''
-                
-                # insert Smooth l1
-                count_loss = self.smoothL1(
-                    outputs.sum(1).sum(1).sum(1),
-                    torch.from_numpy(gd_count).float().to(self.device),
-                )
-                
                 epoch_count_loss.update(count_loss.item(), N)
-                
-                #tv_loss = 0 #Delete this and uncomment below for original code
-                '''
-                # Compute TV loss.
-                gd_count_tensor = (
-                    torch.from_numpy(gd_count)
-                    .float()
-                    .to(self.device)
-                    .unsqueeze(1)
-                    .unsqueeze(2)
-                    .unsqueeze(3)
-                )
-                gt_discrete_normed = gt_discrete / (gd_count_tensor + 1e-6)
-                tv_loss = (
-                    self.tv_loss(outputs_normed, gt_discrete_normed)
-                    .sum(1)
-                    .sum(1)
-                    .sum(1)
-                    * torch.from_numpy(gd_count).float().to(self.device)
-                ).mean(0) * self.args.wtv
-                epoch_tv_loss.update(tv_loss.item(), N)
-                '''
-
-                loss = count_loss #+ ot_loss + tv_loss   # add this again for original code
+                loss = count_loss 
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -265,7 +226,6 @@ class Trainer(object):
                     torch.sum(outputs.view(N, -1),
                               dim=1).detach().cpu().numpy()
                 )
-                
                 pred_err = pred_count - gd_count
                 epoch_loss.update(loss.item(), N)
                 epoch_mse.update(np.mean(pred_err * pred_err), N)
@@ -276,22 +236,19 @@ class Trainer(object):
                     {
                         "train/TOTAL_loss": loss,
                         "train/count_loss": count_loss,
-                        #"train/tv_loss": tv_loss,
                         "train/pred_err": pred_err,
                     },
                     step=self.epoch,
                 )
+        
         #self.scheduler.step()
         self.logger.info(
             "Epoch {} Train, Loss: {:.2f}, Wass Distance: {:.2f}, "
             "Count Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
                 self.epoch,
                 epoch_loss.get_avg(),
-                #epoch_ot_loss.get_avg(),
                 epoch_wd.get_avg(),
-                #epoch_ot_obj_value.get_avg(),
                 epoch_count_loss.get_avg(),
-                #epoch_tv_loss.get_avg(),
                 np.sqrt(epoch_mse.get_avg()),
                 epoch_mae.get_avg(),
                 time.time() - epoch_start,
@@ -302,7 +259,8 @@ class Trainer(object):
         model_state_dic = self.model.state_dict()
         save_path = os.path.join(
             self.save_dir, "{}_ckpt.tar".format(self.epoch))
-        '''
+        
+        '''      # Save model for every epoch
         torch.save(
             {
                 "epoch": self.epoch,
@@ -320,13 +278,15 @@ class Trainer(object):
         epoch_start = time.time()
         self.model.eval()  # Set model to evaluate mode
         epoch_res = []
-        for inputs, count, name in self.dataloaders["val"]:
-            with torch.no_grad(): 
-                inputs = cal_new_tensor(inputs, min_size=args.crop_size)
+        
+        for inputs, count, name in self.dataloaderVal:
+            with torch.no_grad():
+                #nputs = cal_new_tensor(inputs, min_size=args.crop_size)
                 inputs = inputs.to(self.device)
-               
+                #gd_count_val = np.array([len(p) for p in points], dtype=np.float32)    
+                print(name)
                 crop_imgs, crop_masks = [], []
-                b, c, h, w = inputs.size()    
+                b, c, h, w = inputs.size()
                 rh, rw = args.crop_size, args.crop_size
                 for i in range(0, h, rh):
                     gis, gie = max(min(h - rh, i), 0), min(h, i + rh)
@@ -336,11 +296,10 @@ class Trainer(object):
                         mask = torch.zeros([b, 1, h, w]).to(self.device)
                         mask[:, :, gis:gie, gjs:gje].fill_(1.0)
                         crop_masks.append(mask)
-                
                 crop_imgs, crop_masks = map(
                     lambda x: torch.cat(x, dim=0), (crop_imgs, crop_masks)
                 )
-                      
+                
                 crop_preds = []
                 nz, bz = crop_imgs.size(0), args.batch_size
                 for i in range(0, nz, bz):
@@ -357,10 +316,12 @@ class Trainer(object):
                         )
                         / 64
                     )
-
+                
                     crop_preds.append(crop_pred)
                 crop_preds = torch.cat(crop_preds, dim=0)
-
+                """
+                outputs, outputs_normed = self.model(inputs)
+                """
                 # splice them to the original size
                 idx = 0
                 pred_map = torch.zeros([b, 1, h, w]).to(self.device)
@@ -371,18 +332,20 @@ class Trainer(object):
                         pred_map[:, :, gis:gie, gjs:gje] += crop_preds[idx]
                         idx += 1
                 # for the overlapping area, compute average value
+                
                 mask = crop_masks.sum(dim=0).unsqueeze(0)
                 outputs = pred_map / mask
-
-                res = count[0].item() - torch.sum(outputs).item()
+                
+                res = count[0].item() - torch.sum(outputs).item()      # TO See
                 epoch_res.append(res)
+                       
         epoch_res = np.array(epoch_res)
         mse = np.sqrt(np.mean(np.square(epoch_res)))
         mae = np.mean(np.abs(epoch_res))
 
         self.logger.info(
-            "Epoch {} Val, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
-                self.epoch, mse, mae, time.time() - epoch_start
+            "Fold {} Epoch {} Val, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
+                self.fold, self.epoch, mse, mae, time.time() - epoch_start
             )
         )
 
@@ -402,7 +365,7 @@ class Trainer(object):
             )
             print("Saving best model at {} epoch".format(self.epoch))
             model_path = os.path.join(
-                self.save_dir, "best_model.pth"
+                self.save_dir, "best_model_fold{}.pth".format(self.fold)
             )
             torch.save(
                 model_state_dic,
@@ -415,8 +378,8 @@ class Trainer(object):
                 
                 self.wandb_run.log_artifact(artifact)
             
-            # torch.save(model_state_dic, os.path.join(self.save_dir, 'best_model_{}.pth'.format(self.best_count)))
-            # self.best_count += 1
+            #torch.save(model_state_dic, os.path.join(self.save_dir, 'best_model_{}.pth'.format(self.best_count)))
+            #self.best_count += 1
 
 
 def tensor_divideByfactor(img_tensor, factor=32):

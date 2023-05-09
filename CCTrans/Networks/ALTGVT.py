@@ -130,12 +130,20 @@ class GroupAttention(nn.Module):
         self.ws = ws
 
     def forward(self, x, H, W):
+        print(H)
+        print(W)
         B, N, C = x.shape
         h_group, w_group = H // self.ws, W // self.ws
-
+        print(B)
+        print(h_group)
+        print(self.ws)
+        print(w_group)
+        print(C)
         total_groups = h_group * w_group
+        print(x.ndim)
         x = x.reshape(B, h_group, self.ws, w_group, self.ws, C).transpose(2, 3)
-
+        print(x.ndim)
+        
         qkv = self.qkv(x).reshape(B, total_groups, -1, 3, self.num_heads, C // self.num_heads).permute(3, 0, 1, 4, 2, 5)
         # B, hw, ws*ws, 3, n_head, head_dim -> 3, B, hw, n_head, ws*ws, head_dim
         q, k, v = qkv[0], qkv[1], qkv[2]  # B, hw, n_head, ws*ws, head_dim
@@ -542,7 +550,7 @@ def alt_gvt_small(pretrained=False, **kwargs):
 def alt_gvt_base(pretrained=False, **kwargs):
     model = ALTGVT(
         patch_size=4, embed_dims=[96, 192, 384, 768], num_heads=[3, 6, 12, 24], mlp_ratios=[4, 4, 4, 4], qkv_bias=True,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 18, 2], wss=[7, 7, 7, 7], sr_ratios=[8, 4, 2, 1],
+        norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 18, 2], wss=[8, 8, 8, 8], sr_ratios=[8, 4, 2, 1],
         **kwargs)
     model.default_cfg = _cfg()
     checkpoint = torch.load('/home/cv09f23/ComputerVision_Group6_Weakly_supervised_crowd_counting/CCTrans/model_weights/alt_gvt_base.pth') # todo pass path as argument
@@ -567,7 +575,7 @@ def alt_gvt_large(pretrained=False, **kwargs):
     return model
 
 if __name__ == '__main__':
-    model = alt_gvt_large(pretrained=True)
-    x = torch.ones(1, 3, 384, 384)
+    model = alt_gvt_base(pretrained=True)
+    x = torch.ones(1, 3, 256, 256)
     mu, mu_norm = model(x)
     print(mu.size(), mu_norm.size())
