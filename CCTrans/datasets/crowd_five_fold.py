@@ -102,7 +102,7 @@ def gen_discrete_map(im_height, im_width, points):
     return discrete_map
 
 # for five fold non crop images         ##################################
-'''
+
 class Crowd_sh(Base):
     def __init__(self, root_path, crop_size,
                  downsample_ratio=8,
@@ -111,9 +111,9 @@ class Crowd_sh(Base):
         self.method = method
         if method not in ['train', 'val']:
             raise Exception("not implement")
-
+        
         self.im_list = sorted(glob(os.path.join(self.root_path, 'images', '*.jpg')))
-
+        
         print('number of img [{}]: {}'.format(method, len(self.im_list)))
 
     def __len__(self):
@@ -125,9 +125,10 @@ class Crowd_sh(Base):
         gd_path = os.path.join(self.root_path, 'ground-truth', 'GT_{}.mat'.format(name))
         img = Image.open(img_path).convert('RGB')
         keypoints = sio.loadmat(gd_path)['image_info'][0][0][0][0][0]
+        
         if self.method == 'train':
             #print("load new crop")
-            return img, keypoints
+            return self.train_transform(img, keypoints, name)
         elif self.method == 'val':
             wd, ht = img.size
             st_size = 1.0 * min(wd, ht)             
@@ -140,7 +141,7 @@ class Crowd_sh(Base):
             img = self.trans(img)
             return img, len(keypoints), name
 
-    def train_transform(self, img, keypoints):
+    def train_transform(self, img, keypoints, name):
         wd, ht = img.size
         st_size = 1.0 * min(wd, ht)
         # resize the image to fit the crop size
@@ -179,11 +180,10 @@ class Crowd_sh(Base):
                 img = F.hflip(img)
                 gt_discrete = np.fliplr(gt_discrete)
         gt_discrete = np.expand_dims(gt_discrete, 0)
-        print("Transform_crop")
-        return self.trans(img), torch.from_numpy(keypoints.copy()).float(), torch.from_numpy(
-            gt_discrete.copy()).float()
-    '''
-
+       
+        return self.trans(img), len(keypoints)
+    
+'''
 # for pre crop images with ground true .h5 files           ##################################
 class Crowd_sh(Base):
     def __init__(self, root_path, crop_size,
@@ -222,5 +222,5 @@ class Crowd_sh(Base):
         if random.random() > 0.5:
             img = F.hflip(img)   
         return self.trans(img), torch.from_numpy(keypoints.copy()).float()
-    
+   ''' 
    

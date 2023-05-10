@@ -87,7 +87,7 @@ class Regression(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.weight, 0.2)             ################# OPS
                 nn.init.constant_(m.bias, 0)
 
 class Mlp(nn.Module):

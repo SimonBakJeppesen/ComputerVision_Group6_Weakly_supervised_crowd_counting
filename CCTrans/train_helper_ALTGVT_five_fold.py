@@ -10,8 +10,9 @@ from torch.utils.data import Subset
 import numpy as np
 from datetime import datetime
 import torch.nn.functional as F
-from datasets.crowd import Crowd_sh
+from datasets.crowd_five_fold import Crowd_sh
 from sklearn.model_selection import KFold ####
+import random
 
 #from models import vgg19
 from Networks import ALTGVT
@@ -26,9 +27,7 @@ def train_collate(batch):
     points = transposed_batch[
         1
     ]  # the number of points is not fixed, keep it as a list of tensor
-    gt_discretes = torch.stack(transposed_batch[2], 0)
-    return images, points, gt_discretes
-
+    return images, points
 
 class Trainer(object):
     def __init__(self, args):
@@ -95,9 +94,6 @@ class Trainer(object):
         else : 
             wandb.init(mode="disabled")
             
-        self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          #
-        self.mse = nn.MSELoss().to(self.device)
-        self.mae = nn.L1Loss().to(self.device)                              # 
         self.smoothL1 = nn.SmoothL1Loss(beta=self.args.beta).to(self.device)
         self.save_list = Save_Handle(max_num=1)
         self.best_mae = np.inf
@@ -109,7 +105,9 @@ class Trainer(object):
         args = self.args
         kfold = KFold(n_splits=5, shuffle=True, random_state=45)            # Kfold
         
-        for self.fold, (self.train_part, self.val_part) in enumerate(kfold.split(self.datasets["train"])):
+        self.data = self.datasets["val"]
+        print(len(self.data))
+        for self.fold, (self.train_part, self.val_part) in enumerate(kfold.split(self.data)): #val unsorted
             self.fold += 1
             if self.fold in [6]:
                 continue
@@ -119,11 +117,11 @@ class Trainer(object):
             
             self.best_mae = np.inf
             self.best_mse = np.inf
-        
-            if self.fold > 2:
+            self.best_count = 0
             
+            if self.fold > 0:
                 self.start_epoch = 0
-
+                
                 time_str = datetime.strftime(datetime.now(), "%m%d-%H%M%S")
                 self.logger = log_utils.get_logger(
                     os.path.join(self.save_dir, "train-{:s}-fold{}.log".format(time_str,self.fold))
@@ -150,11 +148,9 @@ class Trainer(object):
                 else:
                     self.logger.info("random initialization")
                 
-                #OBS!!!! Implement scheduler here
                 #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[10], gamma=0.33, last_epoch=-1)
-
                 print('Beginning {} fold'.format(self.fold))
-
+                
                 args = self.args
                 for epoch in range(self.start_epoch, args.max_epoch + 1):
                     self.logger.info(
@@ -166,48 +162,33 @@ class Trainer(object):
                         self.val_epoch()
 
     def train_epoch(self):
-        ###epoch_ot_loss = AverageMeter()
-        epoch_ot_obj_value = AverageMeter()
         epoch_wd = AverageMeter()
         epoch_count_loss = AverageMeter()
-        epoch_tv_loss = AverageMeter()
         epoch_loss = AverageMeter()
         epoch_mae = AverageMeter()
         epoch_mse = AverageMeter()
         epoch_start = time.time()
-        self.model.train()  # Set model to training mode
+        self.model.train()  # Set model to training mode  
         
-
-        train_dataset = Subset(self.datasets["train"],self.train_part)  # split train_part into train from list 80%
-        val_dataset = Subset(self.datasets["val"],self.val_part)      # split train_part into val 20%                       
+        self.dataloaders = {
+            x: DataLoader(
+                self.datasets[x],
+                collate_fn=(train_collate if x ==                                 
+                            "train" else default_collate),
+                batch_size=(self.args.batch_size if x == "train" else 1),
+                shuffle=(True if x == "train" else False),
+                num_workers=self.args.num_workers * self.device_count,
+                pin_memory=(True if x == "train" else False), 
+                sampler=(random.shuffle(self.train_part) if x == "train" else self.val_part),     
+            )
+            for x in ["train", "val"]
+        }       
             
-        print('train_dataset')
-        print(len(train_dataset))
-        print(len(val_dataset))
-            
-        self.dataloaderTrain = DataLoader(
-            train_dataset,
-            collate_fn=(default_collate),
-            batch_size=(self.args.batch_size),
-            shuffle=(True),
-            num_workers=self.args.num_workers * self.device_count,
-            pin_memory=(True),
-        )
-            
-        self.dataloaderVal = DataLoader(
-            val_dataset,
-            collate_fn=(default_collate),
-            batch_size=(1),
-            shuffle=(False),
-            num_workers=self.args.num_workers * self.device_count,
-            pin_memory=(False),
-        )
-
-        for step, (inputs, points, name) in enumerate(self.dataloaderTrain): # step from 0 to number of train images / batch size.
+        for step, (inputs, points) in enumerate(self.dataloaders["train"]): # step from 0 to number of train images / batch size.
             inputs = inputs.to(self.device)
             gd_count = np.array(points, dtype=np.float32)
             N = inputs.size(0)
-            print(name)
+            
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
                 
@@ -279,12 +260,11 @@ class Trainer(object):
         self.model.eval()  # Set model to evaluate mode
         epoch_res = []
         
-        for inputs, count, name in self.dataloaderVal:
+        for inputs, count, name in self.dataloaders["val"]:
             with torch.no_grad():
                 #nputs = cal_new_tensor(inputs, min_size=args.crop_size)
                 inputs = inputs.to(self.device)
                 #gd_count_val = np.array([len(p) for p in points], dtype=np.float32)    
-                print(name)
                 crop_imgs, crop_masks = [], []
                 b, c, h, w = inputs.size()
                 rh, rw = args.crop_size, args.crop_size

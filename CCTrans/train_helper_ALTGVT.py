@@ -106,7 +106,7 @@ class Trainer(object):
         self.dataloaders = {
             x: DataLoader(
                 self.datasets[x],
-                collate_fn=(train_collate if x ==                                 ######### if JHU change to default
+                collate_fn=(train_collate if x ==                                 
                             "train" else default_collate),
                 batch_size=(args.batch_size if x == "train" else 1),
                 shuffle=(True if x == "train" else False),

@@ -14,9 +14,9 @@ def parse_args():
     parser.add_argument('--dataset', default='sha', help='dataset name: qnrf, nwpu, sha, shb, custom')
     parser.add_argument('--lr', type=float, default=1*1e-5,
                         help='the initial learning rate')
-    parser.add_argument('--weight-decay', type=float, default=5*1e-4,
+    parser.add_argument('--weight-decay', type=float, default=1*1e-4,
                         help='the weight decay')
-    parser.add_argument('--resume', default='/home/cv09f23/ComputerVision_Group6_Weakly_supervised_crowd_counting/CCTrans/ckpts/ALTGVT/CCTrans-input-256/best_model_fold3.pth', type=str,
+    parser.add_argument('--resume', default='', type=str,
                         help='the path of resume training model')
     parser.add_argument('--max-epoch', type=int, default=1000,
                         help='max training epoch')
@@ -26,7 +26,7 @@ def parse_args():
                         help='the epoch start to val')
     parser.add_argument('--batch-size', type=int, default=8,
                         help='train batch size')
-    parser.add_argument('--device', default='1', help='assign device')
+    parser.add_argument('--device', default='0', help='assign device')
     parser.add_argument('--num-workers', type=int, default=16,
                         help='the num of training process')
     parser.add_argument('--crop-size', type=int, default= 256,
