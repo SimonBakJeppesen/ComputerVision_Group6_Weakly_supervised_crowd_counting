@@ -206,25 +206,7 @@ class Trainer(object):
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
                 # Compute OT loss.
-                #ot_loss = 0 #Delete this and uncomment below for original code
-                '''
-                ot_loss, wd, ot_obj_value = self.ot_loss(
-                    outputs_normed, outputs, points
-                )
-                ot_loss = ot_loss * self.args.wot
-                ot_obj_value = ot_obj_value * self.args.wot
-                epoch_ot_loss.update(ot_loss.item(), N)
-                epoch_ot_obj_value.update(ot_obj_value.item(), N)
-                epoch_wd.update(wd, N)
-                '''
-                '''
-                # Compute counting loss.
-                count_loss = self.mae(
-                    outputs.sum(1).sum(1).sum(1),
-                    torch.from_numpy(gd_count).float().to(self.device),
-                )
-                '''
-                
+
                 # insert Smooth l1
                 count_loss = self.smoothL1(
                     outputs.sum(1).sum(1).sum(1),
@@ -233,28 +215,6 @@ class Trainer(object):
                 
                 epoch_count_loss.update(count_loss.item(), N)
                 
-                #tv_loss = 0 #Delete this and uncomment below for original code
-                '''
-                # Compute TV loss.
-                gd_count_tensor = (
-                    torch.from_numpy(gd_count)
-                    .float()
-                    .to(self.device)
-                    .unsqueeze(1)
-                    .unsqueeze(2)
-                    .unsqueeze(3)
-                )
-                gt_discrete_normed = gt_discrete / (gd_count_tensor + 1e-6)
-                tv_loss = (
-                    self.tv_loss(outputs_normed, gt_discrete_normed)
-                    .sum(1)
-                    .sum(1)
-                    .sum(1)
-                    * torch.from_numpy(gd_count).float().to(self.device)
-                ).mean(0) * self.args.wtv
-                epoch_tv_loss.update(tv_loss.item(), N)
-                '''
-
                 loss = count_loss #+ ot_loss + tv_loss   # add this again for original code
 
                 self.optimizer.zero_grad()

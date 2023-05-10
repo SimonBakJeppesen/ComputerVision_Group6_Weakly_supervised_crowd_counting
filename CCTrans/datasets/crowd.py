@@ -125,7 +125,7 @@ class Crowd_sh(Base):
         img = Image.open(img_path).convert('RGB')
         keypoints = sio.loadmat(gd_path)['image_info'][0][0][0][0][0]
         if self.method == 'train':
-            return self.train_transform(img, keypoints,name)
+            return self.train_transform(img, keypoints, name)
         elif self.method == 'val':
             wd, ht = img.size
             st_size = 1.0 * min(wd, ht)             
@@ -178,7 +178,7 @@ class Crowd_sh(Base):
                 gt_discrete = np.fliplr(gt_discrete)
         gt_discrete = np.expand_dims(gt_discrete, 0)
 
-        return self.trans(img), len(keypoints), name
+        return self.trans(img), len(keypoints)
 
     
 #added by group 6
