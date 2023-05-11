@@ -106,7 +106,7 @@ class Trainer(object):
         self.dataloaders = {
             x: DataLoader(
                 self.datasets[x],
-                collate_fn=(train_collate if x ==                                 ######### if JHU change to default
+                collate_fn=(train_collate if x ==                                 
                             "train" else default_collate),
                 batch_size=(args.batch_size if x == "train" else 1),
                 shuffle=(True if x == "train" else False),
@@ -198,7 +198,6 @@ class Trainer(object):
             number += 1
             inputs = inputs.to(self.device)
             gd_count = np.array(points, dtype=np.float32)
-           
             N = inputs.size(0)
             if number % 100 == 0:
                 print(number)
@@ -211,8 +210,7 @@ class Trainer(object):
                 count_loss = self.smoothL1(
                     outputs.sum(1).sum(1).sum(1),
                     torch.from_numpy(gd_count).float().to(self.device),
-                )
-                
+                )  
                 epoch_count_loss.update(count_loss.item(), N)
                 
                 loss = count_loss #+ ot_loss + tv_loss   # add this again for original code
