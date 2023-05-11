@@ -83,7 +83,7 @@ class Trainer(object):
             }
         else:
             raise NotImplementedError
-
+        
         self.start_epoch = 0
         
         # check if wandb has to log
@@ -112,8 +112,22 @@ class Trainer(object):
             if self.fold in [6]:
                 continue
             
-            print(self.train_part)
-            print(self.val_part)
+            print(len(self.train_part))
+            print(len(self.val_part))
+              
+            self.dataloaders = {
+                x: DataLoader(
+                    self.datasets[x],
+                    collate_fn=(train_collate if x ==                                 
+                            "train" else default_collate),
+                    batch_size=(self.args.batch_size if x == "train" else 1),
+                    #shuffle=(True if x == "train" else False),
+                    num_workers=self.args.num_workers * self.device_count,
+                    pin_memory=(True if x == "train" else False), 
+                    sampler=(self.train_part if x == "train" else self.val_part),     
+                )
+                for x in ["train", "val"]
+            }  
             
             self.best_mae = np.inf
             self.best_mse = np.inf
@@ -169,21 +183,7 @@ class Trainer(object):
         epoch_mse = AverageMeter()
         epoch_start = time.time()
         self.model.train()  # Set model to training mode  
-        
-        self.dataloaders = {
-            x: DataLoader(
-                self.datasets[x],
-                collate_fn=(train_collate if x ==                                 
-                            "train" else default_collate),
-                batch_size=(self.args.batch_size if x == "train" else 1),
-                shuffle=(True if x == "train" else False),
-                num_workers=self.args.num_workers * self.device_count,
-                pin_memory=(True if x == "train" else False), 
-                sampler=(random.shuffle(self.train_part) if x == "train" else self.val_part),     
-            )
-            for x in ["train", "val"]
-        }       
-            
+           
         for step, (inputs, points) in enumerate(self.dataloaders["train"]): # step from 0 to number of train images / batch size.
             inputs = inputs.to(self.device)
             gd_count = np.array(points, dtype=np.float32)
@@ -263,8 +263,8 @@ class Trainer(object):
         for inputs, count, name in self.dataloaders["val"]:
             with torch.no_grad():
                 #nputs = cal_new_tensor(inputs, min_size=args.crop_size)
-                inputs = inputs.to(self.device)
-                #gd_count_val = np.array([len(p) for p in points], dtype=np.float32)    
+                inputs = inputs.to(self.device)   
+                
                 crop_imgs, crop_masks = [], []
                 b, c, h, w = inputs.size()
                 rh, rw = args.crop_size, args.crop_size
