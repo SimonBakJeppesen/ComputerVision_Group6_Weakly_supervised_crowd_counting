@@ -54,15 +54,15 @@ for img_path in img_paths:
     rate_2 = 1
     flag = 0
     if Img_data.shape[1] >= Img_data.shape[0]:  # 后面的大
-        rate_1 = 1536.0 / Img_data.shape[1]
-        rate_2 = 1024 / Img_data.shape[0]
+        rate_1 = 768 / Img_data.shape[1]
+        rate_2 = 512 / Img_data.shape[0]
         Img_data = cv2.resize(Img_data, (0, 0), fx=rate_1, fy=rate_2)
         Gt_data[:, 0] = Gt_data[:, 0] * rate_1
         Gt_data[:, 1] = Gt_data[:, 1] * rate_2
 
     elif Img_data.shape[0] > Img_data.shape[1]:  # 前面的大
-        rate_1 = 1536.0 / Img_data.shape[0]
-        rate_2 = 1024.0 / Img_data.shape[1]
+        rate_1 = 768 / Img_data.shape[0]
+        rate_2 = 512 / Img_data.shape[1]
         Img_data = cv2.resize(Img_data, (0, 0), fx=rate_2, fy=rate_1)
         Gt_data[:, 0] = Gt_data[:, 0] * rate_2
         Gt_data[:, 1] = Gt_data[:, 1] * rate_1
@@ -76,8 +76,8 @@ for img_path in img_paths:
 
     height, width = Img_data.shape[0], Img_data.shape[1]
 
-    m = int(width / 512)
-    n = int(height / 512)
+    m = int(width / 256)
+    n = int(height / 256)
     fname = img_path.split('/')[-1]
     root_path = img_path.split('IMG_')[0].replace('images', 'images_crop_CC')
 
@@ -86,8 +86,8 @@ for img_path in img_paths:
 
         for i in range(0, m):
             for j in range(0, n):
-                crop_img = Img_data[j * 512: 512 * (j + 1), i * 512:(i + 1) * 512, ]
-                crop_kpoint = kpoint[j * 512: 512 * (j + 1), i * 512:(i + 1) * 512]
+                crop_img = Img_data[j * 256: 256 * (j + 1), i * 256:(i + 1) * 256, ]
+                crop_kpoint = kpoint[j * 256: 256 * (j + 1), i * 256:(i + 1) * 256]
                 gt_count = np.sum(crop_kpoint)
 
                 save_fname = str(i) + str(j) + str('_') + fname

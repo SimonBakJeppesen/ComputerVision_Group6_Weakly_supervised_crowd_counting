@@ -18,12 +18,10 @@ img_train_path = root + '/train/images/'
 img_val_path = root + '/val/images/'
 img_test_path = root + '/test/images/'
 
-
 save_train_img_path = root + '/train_data/images/'
 save_val_img_path = root + '/val_data/images/'
 save_test_img_path = root + '/test_data/images/'
 
-distance = 1
 img_train = []
 img_val = []
 img_test = []
@@ -63,7 +61,7 @@ for img_path in img_paths:
             Gt_data[:, 0] = Gt_data[:, 0] * rate_2
             Gt_data[:, 1] = Gt_data[:, 1] * rate_1
         
-        kpoint = np.zeros((Img_data.shape[0], Img_data.shape[1]))
+        kpoint = np.zeros((Img_data.shape[0], Img_data.shape[1])) #Oops, double initialization
         
         for count in range(0, len(Gt_data)):
             if int(Gt_data[count][1]) < Img_data.shape[0] and int(Gt_data[count][0]) < Img_data.shape[1]:

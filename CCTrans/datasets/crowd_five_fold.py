@@ -102,8 +102,6 @@ def gen_discrete_map(im_height, im_width, points):
     assert np.sum(discrete_map) == num_gt
     return discrete_map
 
-# for five fold non crop images         ##################################
-
 class Crowd_sh(Base):
     def __init__(self, root_path, crop_size,
                  downsample_ratio=8,
