@@ -28,14 +28,14 @@ def parse_args():
                         help='the epoch start to val')
     parser.add_argument('--batch-size', type=int, default=6,
                         help='train batch size')
-    parser.add_argument('--device', default='0', help='assign device')
+    parser.add_argument('--device', default='1', help='assign device')
     parser.add_argument('--num-workers', type=int, default=16,
                         help='the num of training process')
     parser.add_argument('--crop-size', type=int, default= 256,
                         help='the crop size of the train image')
     #parser.add_argument('--wot', type=float, default=0.1, help='weight on OT loss')
     #parser.add_argument('--wtv', type=float, default=0.01, help='weight on TV loss')
-    parser.add_argument('--beta', type=float, default=6.0, help='Beta value of the smooth L1 loss')
+    parser.add_argument('--beta', type=float, default=1.0, help='Beta value of the smooth L1 loss')
     #parser.add_argument('--reg', type=float, default=10.0,
     #                    help='entropy regularization in sinkhorn')
     #parser.add_argument('--num-of-iter-in-ot', type=int, default=100,

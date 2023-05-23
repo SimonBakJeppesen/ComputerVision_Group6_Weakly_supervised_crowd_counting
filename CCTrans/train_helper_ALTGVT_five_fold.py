@@ -6,6 +6,7 @@ import torch.nn as nn
 from torch import optim
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
+from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data import Subset
 import numpy as np
 from datetime import datetime
@@ -13,6 +14,9 @@ import torch.nn.functional as F
 from datasets.crowd_five_fold import Crowd_sh
 from sklearn.model_selection import KFold ####
 import random
+
+from torchvision import models
+from torchsummary import summary
 
 #from models import vgg19
 from Networks import ALTGVT
@@ -83,8 +87,6 @@ class Trainer(object):
             }
         else:
             raise NotImplementedError
-
-        self.start_epoch = 0
         
         # check if wandb has to log
         if args.wandb:
@@ -95,10 +97,8 @@ class Trainer(object):
             wandb.init(mode="disabled")
             
         self.smoothL1 = nn.SmoothL1Loss(beta=self.args.beta).to(self.device)
+        #self.mae = nn.L1Loss().to(self.device)
         self.save_list = Save_Handle(max_num=1)
-        self.best_mae = np.inf
-        self.best_mse = np.inf
-        self.best_count = 0
 
     def train(self):
         """training process"""
@@ -107,19 +107,33 @@ class Trainer(object):
         
         self.data = self.datasets["val"]
         print(len(self.data))
-        for self.fold, (self.train_part, self.val_part) in enumerate(kfold.split(self.data)): #val unsorted
+        for self.fold, (self.train_part, self.val_part) in enumerate(kfold.split(self.data)):
             self.fold += 1
             if self.fold in [6]:
                 continue
             
-            print(self.train_part)
-            print(self.val_part)
+            print(len(self.train_part))
+            print(len(self.val_part))
+              
+            self.dataloaders = {
+                x: DataLoader(
+                    self.datasets[x],
+                    collate_fn=(train_collate if x ==                                 
+                            "train" else default_collate),
+                    batch_size=(self.args.batch_size if x == "train" else 1),
+                    #shuffle=(True if x == "train" else False),
+                    num_workers=self.args.num_workers * self.device_count,
+                    pin_memory=(True if x == "train" else False), 
+                    sampler=(SubsetRandomSampler(self.train_part) if x == "train" else self.val_part),     
+                )
+                for x in ["train", "val"]
+            }  
             
             self.best_mae = np.inf
             self.best_mse = np.inf
             self.best_count = 0
             
-            if self.fold > 0:
+            if self.fold > 1:
                 self.start_epoch = 0
                 
                 time_str = datetime.strftime(datetime.now(), "%m%d-%H%M%S")
@@ -127,8 +141,23 @@ class Trainer(object):
                     os.path.join(self.save_dir, "train-{:s}-fold{}.log".format(time_str,self.fold))
                 )
                 
-                self.model = ALTGVT.alt_gvt_large(pretrained=True)
+                self.model = ALTGVT.alt_gvt_large(pretrained=True)    
                 self.model.to(self.device)
+                
+                
+                ###########################
+                cv = 0    
+                for name, param in self.model.named_parameters():
+                    cv = cv+1
+                    print(name)
+                    if cv < 28:
+                        print('yes')
+                        param.requires_grad = False
+                    if cv > 75:
+                        print('yes')
+                        param.requires_grad = False
+                ############################     
+                
                 self.optimizer = optim.AdamW(
                     self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
                 )
@@ -160,6 +189,7 @@ class Trainer(object):
                     self.train_epoch()
                     if epoch % args.val_epoch == 0 and epoch >= args.val_start:
                         self.val_epoch()
+                del self.model
 
     def train_epoch(self):
         epoch_wd = AverageMeter()
@@ -169,21 +199,7 @@ class Trainer(object):
         epoch_mse = AverageMeter()
         epoch_start = time.time()
         self.model.train()  # Set model to training mode  
-        
-        self.dataloaders = {
-            x: DataLoader(
-                self.datasets[x],
-                collate_fn=(train_collate if x ==                                 
-                            "train" else default_collate),
-                batch_size=(self.args.batch_size if x == "train" else 1),
-                shuffle=(True if x == "train" else False),
-                num_workers=self.args.num_workers * self.device_count,
-                pin_memory=(True if x == "train" else False), 
-                sampler=(random.shuffle(self.train_part) if x == "train" else self.val_part),     
-            )
-            for x in ["train", "val"]
-        }       
-            
+           
         for step, (inputs, points) in enumerate(self.dataloaders["train"]): # step from 0 to number of train images / batch size.
             inputs = inputs.to(self.device)
             gd_count = np.array(points, dtype=np.float32)
@@ -197,6 +213,7 @@ class Trainer(object):
                     torch.from_numpy(gd_count).float().to(self.device),
                 )
                 epoch_count_loss.update(count_loss.item(), N)
+                
                 loss = count_loss 
 
                 self.optimizer.zero_grad()
@@ -263,8 +280,8 @@ class Trainer(object):
         for inputs, count, name in self.dataloaders["val"]:
             with torch.no_grad():
                 #nputs = cal_new_tensor(inputs, min_size=args.crop_size)
-                inputs = inputs.to(self.device)
-                #gd_count_val = np.array([len(p) for p in points], dtype=np.float32)    
+                inputs = inputs.to(self.device)   
+                
                 crop_imgs, crop_masks = [], []
                 b, c, h, w = inputs.size()
                 rh, rw = args.crop_size, args.crop_size

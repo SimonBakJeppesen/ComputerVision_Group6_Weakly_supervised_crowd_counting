@@ -38,16 +38,25 @@ class Regression(nn.Module):
             nn.ReLU(inplace=True)
         )
         self.stage1 = nn.Sequential(
+            nn.Conv2d(256, 256, 1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
             nn.Conv2d(256, 128, 3, padding=1, dilation=1),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True)
         )
         self.stage2 = nn.Sequential(
+            nn.Conv2d(256, 256, 3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
             nn.Conv2d(256, 128, 3, padding=2, dilation=2),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True)
         )
         self.stage3 = nn.Sequential(
+            nn.Conv2d(256, 256, 5, padding=2),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
             nn.Conv2d(256, 128, 3, padding=3, dilation=3),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True)
@@ -61,6 +70,7 @@ class Regression(nn.Module):
             nn.Conv2d(384, 64, 3, padding=1, dilation=1),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
+            nn.Dropout(0.1),   #########
             nn.Conv2d(64, 1, 1),
             nn.ReLU()
         )
@@ -87,7 +97,7 @@ class Regression(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)            
+                nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
 class Mlp(nn.Module):
@@ -132,9 +142,10 @@ class GroupAttention(nn.Module):
     def forward(self, x, H, W):
         B, N, C = x.shape
         h_group, w_group = H // self.ws, W // self.ws
+
         total_groups = h_group * w_group
         x = x.reshape(B, h_group, self.ws, w_group, self.ws, C).transpose(2, 3)
-        
+
         qkv = self.qkv(x).reshape(B, total_groups, -1, 3, self.num_heads, C // self.num_heads).permute(3, 0, 1, 4, 2, 5)
         # B, hw, ws*ws, 3, n_head, head_dim -> 3, B, hw, n_head, ws*ws, head_dim
         q, k, v = qkv[0], qkv[1], qkv[2]  # B, hw, n_head, ws*ws, head_dim
@@ -426,7 +437,7 @@ class CPVTV2(PyramidVisionTransformer):
         self.pos_block = nn.ModuleList(
             [PosCNN(embed_dim, embed_dim) for embed_dim in embed_dims]
         )
-
+       
         self.regression = Regression()
         self.apply(self._init_weights)
 
@@ -494,7 +505,7 @@ class ALTGVT(PCPVT):
     alias Twins-SVT
     """
     def __init__(self, img_size=224, patch_size=4, in_chans=3, num_classes=1000, embed_dims=[64, 128, 256],
-                 num_heads=[1, 2, 4], mlp_ratios=[4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
+                 num_heads=[1, 2, 4], mlp_ratios=[4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,     ###############      
                  attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
                  depths=[4, 4, 4], sr_ratios=[4, 2, 1], block_cls=GroupBlock, wss=[7, 7, 7]):
         super(ALTGVT, self).__init__(img_size, patch_size, in_chans, num_classes, embed_dims, num_heads,
@@ -506,6 +517,7 @@ class ALTGVT(PCPVT):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
         cur = 0
         self.blocks = nn.ModuleList()
+      
         for k in range(len(depths)):
             _block = nn.ModuleList([block_cls(
                 dim=embed_dims[k], num_heads=num_heads[k], mlp_ratio=mlp_ratios[k], qkv_bias=qkv_bias,
@@ -541,12 +553,10 @@ def alt_gvt_small(pretrained=False, **kwargs):
 def alt_gvt_base(pretrained=False, **kwargs):
     model = ALTGVT(
         patch_size=4, embed_dims=[96, 192, 384, 768], num_heads=[3, 6, 12, 24], mlp_ratios=[4, 4, 4, 4], qkv_bias=True,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 18, 2], wss=[8, 8, 8, 8], sr_ratios=[8, 4, 2, 1],
+        norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 18, 2], wss=[7, 7, 7, 7], sr_ratios=[8, 4, 2, 1],
         **kwargs)
+
     model.default_cfg = _cfg()
-    checkpoint = torch.load('/home/cv09f23/ComputerVision_Group6_Weakly_supervised_crowd_counting/CCTrans/model_weights/alt_gvt_base.pth') # todo pass path as argument
-    model.load_state_dict(checkpoint, strict=False)
-    print("load transformer pretrained") 
     return model
 
 
@@ -566,7 +576,7 @@ def alt_gvt_large(pretrained=False, **kwargs):
     return model
 
 if __name__ == '__main__':
-    model = alt_gvt_base(pretrained=True)
+    model = alt_gvt_large(pretrained=True)
     x = torch.ones(1, 3, 256, 256)
     mu, mu_norm = model(x)
     print(mu.size(), mu_norm.size())

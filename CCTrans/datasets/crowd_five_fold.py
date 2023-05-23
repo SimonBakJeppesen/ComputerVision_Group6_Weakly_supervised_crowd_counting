@@ -28,6 +28,7 @@ class Base(data.Dataset):
         self.dc_size = self.c_size // self.d_ratio
         self.trans = transforms.Compose([
             transforms.ToTensor(),
+            transforms.Grayscale(num_output_channels=3),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
 
@@ -183,9 +184,9 @@ class Crowd_sh(Base):
        
         return self.trans(img), len(keypoints)
     
-'''
+
 # for pre crop images with ground true .h5 files           ##################################
-class Crowd_sh(Base):
+class Crowd_sh_pre_crop(Base):
     def __init__(self, root_path, crop_size,
                  downsample_ratio=8,
                  method='train'):
@@ -222,5 +223,5 @@ class Crowd_sh(Base):
         if random.random() > 0.5:
             img = F.hflip(img)   
         return self.trans(img), torch.from_numpy(keypoints.copy()).float()
-   ''' 
+
    

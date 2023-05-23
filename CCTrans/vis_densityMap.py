@@ -15,6 +15,8 @@ import os
 import argparse
 import torch.nn.functional as F
 import cv2
+import h5py
+from scipy import fftpack
 
 def vis(args):
     os.environ['CUDA_VISIBLE_DEVICES'] = args.device  # set vis gpu
@@ -32,27 +34,31 @@ def vis(args):
     if not os.path.exists(image_path):
         print("not find image path!")
         exit(-1)
-
-    if image_path.split("/")[-4] != "QNRF":
-        dataset = "/".join(image_path.split("/")[-5:-3])
-    else:
-        dataset = "QNRF"
+    
+    dataset = "jhu"
 
     print("detect image '%s'..." % image_path)
     if not os.path.exists(image_path):
         print("not find image path!")
         exit(-1)
 
-    if dataset == "QNRF":
+    if dataset == "jhu":
+        '''
         mat = io.loadmat(
             image_path.replace('.jpg', '.mat').replace('images', 'ground_truth').replace('.', '_ann.').replace(
                 "UCF-QNRF-Nor", "UCF-QNRF"))
         points = mat["annPoints"]
+        '''
+        gt_path = image_path.replace('.jpg', '.txt').replace('images', 'gt')
+        print(gt_path)
+        mat = np.loadtxt(gt_path, delimiter=' ')
+        points = mat 
+        gt_count = len(mat)
     else:
         mat = io.loadmat(image_path.replace('.jpg', '.mat').replace('images', 'ground-truth').replace("IMG", "GT_IMG"))
         points = mat["image_info"][0, 0][0, 0][0]
-
-    gt_count = len(points)
+        gt_count = len(points)
+    
     image = Image.open(image_path).convert("RGB")
     wd, ht = image.size
     st_size = 1.0 * min(wd, ht)
@@ -74,11 +80,54 @@ def vis(args):
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
     image = transform(image)
-    gt_dmap_path = image_path.replace('.jpg', '.npy').replace('images', 'density_maps_constant15')
-    gt_dmap = np.load(gt_dmap_path)
+    
+    Img_data = cv2.imread(image_path)
+    
+    if mat.ndim > 1:
+        Gt_data = mat[:,:2]
+    
+        if Img_data.shape[1] >= Img_data.shape[0]:
+            rate_1 = 1 #1536.0 / Img_data.shape[1]
+            rate_2 = 1 #1024 / Img_data.shape[0]
+            Img_data = cv2.resize(Img_data, (0, 0), fx=rate_1, fy=rate_2)
+            Gt_data[:, 0] = Gt_data[:, 0] * rate_1
+            Gt_data[:, 1] = Gt_data[:, 1] * rate_2
 
+        elif Img_data.shape[0] > Img_data.shape[1]:
+            rate_1 = 1 #1536.0 / Img_data.shape[0]
+            rate_2 = 1 #1024.0 / Img_data.shape[1]
+            Img_data = cv2.resize(Img_data, (0, 0), fx=rate_2, fy=rate_1)
+            Gt_data[:, 0] = Gt_data[:, 0] * rate_2
+            Gt_data[:, 1] = Gt_data[:, 1] * rate_1
+      
+    kpoint = np.zeros((Img_data.shape[0], Img_data.shape[1]))
+        
+    for count in range(0, len(Gt_data)):
+        if int(Gt_data[count][1]) < Img_data.shape[0] and int(Gt_data[count][0]) < Img_data.shape[1]:
+            kpoint[int(Gt_data[count][1]), int(Gt_data[count][0])] = 1
+    
+    ## gausian kernal
+    t = np.linspace(-10, 10, 30)
+    bump = np.exp(-0.1*t**2)
+    bump /= np.trapz(bump) # normalize the integral to 1
+
+    # make a 2-D kernel out of it
+    kernel = bump[:, np.newaxis] * bump[np.newaxis, :]
+    kernel_ft = fftpack.fft2(kernel, shape=kpoint.shape[:2], axes=(0, 1))
+
+    # convolve
+    img_ft = fftpack.fft2(kpoint, axes=(0, 1))
+    # the 'newaxis' is to match to color direction
+    img2_ft = kernel_ft[:, :] * img_ft
+    img2 = fftpack.ifft2(img2_ft, axes=(0, 1)).real
+
+    # clip values to range
+    img2 = np.clip(img2, 0, 1)
+    
+    gt_dmap = img2
+      
+    
     with torch.no_grad():
-        # nputs = cal_new_tensor(inputs, min_size=args.crop_size)
         inputs = image.unsqueeze(0).to(device)
         crop_imgs, crop_masks = [], []
         b, c, h, w = inputs.size()
@@ -92,7 +141,6 @@ def vis(args):
                 mask[:, :, gis:gie, gjs:gje].fill_(1.0)
                 crop_masks.append(mask)
         crop_imgs, crop_masks = map(lambda x: torch.cat(x, dim=0), (crop_imgs, crop_masks))
-
         crop_preds = []
         nz, bz = crop_imgs.size(0), args.batch_size
         for i in range(0, nz, bz):
@@ -118,24 +166,25 @@ def vis(args):
         mask = crop_masks.sum(dim=0).unsqueeze(0)
         pred_map = pred_map / mask
         pred_map = pred_map.squeeze(0).squeeze(0).cpu().data.numpy()
-    return pred_map, gt_dmap, gt_count
+    return pred_map, gt_dmap, gt_count, Img_data
+
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--device', default='1', help='assign device')
-    parser.add_argument("--image_path", type=str, required=True,
+    parser.add_argument('--device', default='0', help='assign device')
+    parser.add_argument("--image_path", default='/home/cv06f23/Dataset/jhu_crowd_v2.0/jhu_crowd_v2.0/test/images/2168.jpg',
                         help="the image path to be detected.")
-    parser.add_argument("--weight_path", type=str, required=True,
+    parser.add_argument("--weight_path", default='/home/cv09f23/ComputerVision_Group6_Weakly_supervised_crowd_counting/CCTrans/ckpts/ALTGVT/CCTrans_input-512/best_model.pth',
                         help="the weight path to be loaded")
-    parser.add_argument('--crop_size', type=int, default=256,
+    parser.add_argument('--crop_size', type=int, default=512,
                         help='the crop size of the train image')
     parser.add_argument('--batch-size', type=int, default=1, help='train batch size')
 
     args = parser.parse_args()
     print(args)
 
-    pred_map, gt_dmap, gt_count = vis(args)
+    pred_map, gt_dmap, gt_count, Img_data = vis(args)
 
     save_path = "vis/%s"%(args.image_path.split("/")[-4]+"/"+args.image_path.split("/")[-1][:-4])
     if not os.path.exists(save_path):
@@ -149,6 +198,7 @@ if __name__ == "__main__":
     vis_img = (vis_img * 255).astype(np.uint8)
     vis_img = cv2.applyColorMap(vis_img, cv2.COLORMAP_JET)
     cv2.imwrite("%s/pred_map.png" % save_path, vis_img)
+    cv2.imwrite("%s/Img.png" % save_path, Img_data)
 
     # plt.imsave("%s/pred_map.png" % save_path, pred_map)
     plt.imsave("%s/gt_dmap.png" % save_path, gt_dmap, cmap = 'jet')

@@ -2,8 +2,7 @@ import argparse
 import torch
 import os
 import numpy as np
-# if pre crop
-import datasets.crowd as crowd
+import datasets.crowd_five_fold as crowd
 # else
 #import datasets.crowd as crowd
 from Networks import ALTGVT
@@ -26,7 +25,7 @@ def cal_new_tensor(img_tensor, min_size=512):
     return img_tensor
 
 parser = argparse.ArgumentParser(description='Test ')
-parser.add_argument('--device', default='0', help='assign device')
+parser.add_argument('--device', default='1', help='assign device')
 parser.add_argument('--batch-size', type=int, default=1,
                         help='train batch size')
 parser.add_argument('--crop-size', type=int, default=256,
@@ -55,7 +54,7 @@ def test(args, isSave = True):
         dataset = crowd.Crowd_sh(os.path.join(data_path, 'test_data'), crop_size, 8, method='val')
         # preCrop
     elif args.dataset.lower() == 'sha_precrop':
-        dataset = crowd.Crowd_sh(os.path.join(data_path, 'test_data'), crop_size, 8, method='val')
+        dataset = crowd.Crowd_sh_pre_crop(os.path.join(data_path, 'test_data'), crop_size, 8, method='val')
     elif args.dataset.lower() == 'custom':
         dataset = crowd.CustomDataset(data_path, crop_size, downsample_ratio=8, method='test')
     elif args.dataset.lower() == 'jhu':

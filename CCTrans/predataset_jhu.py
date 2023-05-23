@@ -1,6 +1,5 @@
 import os
 import time
-
 import cv2
 import h5py
 import numpy as np
@@ -22,7 +21,6 @@ save_train_img_path = root + '/train_data_CC/images/'
 save_val_img_path = root + '/val_data_CC/images/'
 save_test_img_path = root + '/test_data_CC/images/'
 
-distance = 1
 img_train = []
 img_val = []
 img_test = []
@@ -39,8 +37,6 @@ img_paths.sort()
 
 
 for img_path in img_paths:
-
-
     Img_data = cv2.imread(img_path)
     mat = np.loadtxt(img_path.replace('.jpg', '.txt').replace('images', 'gt'), delimiter=' ')
     kpoint = np.zeros((Img_data.shape[0], Img_data.shape[1]))
