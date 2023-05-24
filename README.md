@@ -42,9 +42,10 @@ Github: https://github.com/wfs123456/CCTrans (reproduction)<br />
 Prepare:
 - Download pretrained weights to the transformer-encoder: https://dl.fbaipublicfiles.com/deit/deit_base_patch16_384-8de9b5d1.pth<br />
 - Change path in models.py line 110. <br />
-- Change filepath in predataset_sh.py do the same for predataset_jhu.py
+- Change filepath in data/predataset_sh.py, do the same for data/predataset_jhu.py and make_npydata.py.
 ```
 python /data/predataset_sh.py
+python make_npydata.py
 ```
 ### Train:
 Update argument dataset, test_dataset, gpu_id in config.py  
@@ -89,23 +90,24 @@ python vis_densityMap.py
 ```
 ## Description of files:
 ### TransCrowd
-/data/predataset_sh.py (precrop images to 256X256 pixels and save ground true as .h5 file) <br />
+/data/predataset_sh.py (precrop images to 256X256 pixels and save ground truth as .h5 file) <br />
 /Networks/models.py (the model)<br />
 config.py (arguments)<br />
-train.py (train code)<br />
-test.py (test code)<br />
-dataset.py (load data and do argumentation)<br />
-make_npydata.py (make train, val and test list)<br />
+train.py (main train code)<br />
+test.py (main test code)<br />
+dataset.py (dataset object for pytorch dataloader, with augmentation)<br />
+make_npydata.py (make train, val and test filelists)<br />
 train_cross_val.py (train with five-fold cross validation)<br />
-image.py (dataloader)<br />
+image.py (helper function to match img with ground truth)<br />
 
 
 ### CCTrans
 predataset_jhu.py (precrop data to 512x512 pixels and save gt as .h5 file)<br />
-train.py (Train model with early stopping)<br />
-train_five_fold.py (Train model with k-fold cross validation)<br />
+train.py (Main function and argument setup for training)<br />
+train_five_fold.py (Main function and argument setup for 5-fold cross validation)<br />
 test_image_patch.py (Test model on test set)<br />
 vis_densityMap.py (Generate gt density map and predicted density map)<br />
-train_helper_ALTGVT.py (initialization of model and control of train and validation)<br />
+train_helper_ALTGVT.py (Trainer object for control of train and validation)<br />
+train_helper_ALTGVT.py (Likewise but for 5-fold)<br />
 /Networks/ALTCVT.py (The model)<br />
 /datasets/crowd.py (dataloader and data augmentation)<br />
