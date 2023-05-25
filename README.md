@@ -63,7 +63,7 @@ python test.py
 ```
 ## CCTrans
 Prepare:
-- Download pretrained weights: //github.com/Meituan-AutoML/Twins/alt_gvt_large.pth <br />
+- Download pretrained weights: alt_gvt_large.pth at //github.com/Meituan-AutoML/Twins/ <br />
 - Change path in /Networks/ALTGVT.py line 573. <br />
 Prepare data for JHU-CROWD++:
 ```
@@ -81,10 +81,10 @@ python train.py
 ```
 ### Test:
 ```
-python test_image_patch.py
+python test_image_patch.py --model-path 'XX.pth' --data-path 'ShanghaiTech/ShanghaiTech/part_A'
 ```
 ### For visualization of density maps:
-Change the image_patch in vis_densityMap.py
+Change the image_patch line 176 and the model patch line 178 in vis_densityMap.py
 ```
 python vis_densityMap.py
 ```
