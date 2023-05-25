@@ -15,7 +15,6 @@ from datasets.crowd import Crowd_sh, Crowd_jhu
 
 #from models import vgg19
 from Networks import ALTGVT
-from losses.ot_loss import OT_Loss
 from utils.pytorch_utils import Save_Handle, AverageMeter
 import utils.log_utils as log_utils
 import wandb

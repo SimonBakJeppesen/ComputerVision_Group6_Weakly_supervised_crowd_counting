@@ -20,7 +20,6 @@ from torchsummary import summary
 
 #from models import vgg19
 from Networks import ALTGVT
-from losses.ot_loss import OT_Loss
 from utils.pytorch_utils import Save_Handle, AverageMeter
 import utils.log_utils as log_utils
 import wandb
@@ -127,7 +126,7 @@ class Trainer(object):
             self.best_mse = np.inf
             self.best_count = 0
             
-            if self.fold > 1:
+            if self.fold > 4:
                 self.start_epoch = 0
                 
                 time_str = datetime.strftime(datetime.now(), "%m%d-%H%M%S")
@@ -136,21 +135,7 @@ class Trainer(object):
                 )
                 
                 self.model = ALTGVT.alt_gvt_large(pretrained=True)    
-                self.model.to(self.device)
-                
-                
-                ###########################
-                cv = 0    
-                for name, param in self.model.named_parameters():
-                    cv = cv+1
-                    print(name)
-                    if cv < 28:
-                        print('yes')
-                        param.requires_grad = False
-                    if cv > 75:
-                        print('yes')
-                        param.requires_grad = False
-                ############################     
+                self.model.to(self.device)    
                 
                 self.optimizer = optim.AdamW(
                     self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
