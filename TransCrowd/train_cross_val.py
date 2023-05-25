@@ -76,8 +76,6 @@ def main(args):
                                                      std=[0.229, 0.224, 0.225]),
                             ]),
                             train=True,
-                            #batch_size=args['batch_size'], #Hvad faen gør de her to overhovedet???
-                            #num_workers=args['workers'],
                             args=args),
         batch_size=args['batch_size'], num_workers=args['workers'], sampler=train_subsampler)
         

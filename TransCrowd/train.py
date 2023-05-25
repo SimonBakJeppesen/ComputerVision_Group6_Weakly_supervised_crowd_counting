@@ -23,7 +23,6 @@ setup_seed(args.seed)
 
 logger = logging.getLogger('mnist_AutoML')
 
-
 def main(args):
     if args['dataset'] == 'ShanghaiA':
         train_file = './npydata/ShanghaiA_train.npy'
@@ -45,7 +44,6 @@ def main(args):
         train_list = np.load(outfile).tolist()
     with open(val_file, 'rb') as outfile:
         val_list = np.load(outfile).tolist()
-
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args['gpu_id']
 

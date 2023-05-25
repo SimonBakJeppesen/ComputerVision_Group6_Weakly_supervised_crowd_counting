@@ -43,11 +43,6 @@ class Trainer(object):
             "ALTGVT/{}-input-{}".format(
                 args.run_name,
                 args.crop_size,
-                #args.wot,
-                #args.wtv,
-                #args.reg,
-                #args.num_of_iter_in_ot,
-                #args.norm_cood,
             )
         )
 
@@ -97,7 +92,6 @@ class Trainer(object):
             wandb.init(mode="disabled")
             
         self.smoothL1 = nn.SmoothL1Loss(beta=self.args.beta).to(self.device)
-        #self.mae = nn.L1Loss().to(self.device)
         self.save_list = Save_Handle(max_num=1)
 
     def train(self):
@@ -258,16 +252,7 @@ class Trainer(object):
         save_path = os.path.join(
             self.save_dir, "{}_ckpt.tar".format(self.epoch))
         
-        '''      # Save model for every epoch
-        torch.save(
-            {
-                "epoch": self.epoch,
-                "optimizer_state_dict": self.optimizer.state_dict(),
-                "model_state_dict": model_state_dic,
-            },
-            save_path,
-        )
-        '''
+ 
         self.save_list.append(save_path)
 
     def val_epoch(self):
@@ -279,7 +264,7 @@ class Trainer(object):
         
         for inputs, count, name in self.dataloaders["val"]:
             with torch.no_grad():
-                #nputs = cal_new_tensor(inputs, min_size=args.crop_size)
+                #inputs = cal_new_tensor(inputs, min_size=args.crop_size)
                 inputs = inputs.to(self.device)   
                 
                 crop_imgs, crop_masks = [], []
@@ -316,9 +301,7 @@ class Trainer(object):
                 
                     crop_preds.append(crop_pred)
                 crop_preds = torch.cat(crop_preds, dim=0)
-                """
-                outputs, outputs_normed = self.model(inputs)
-                """
+
                 # splice them to the original size
                 idx = 0
                 pred_map = torch.zeros([b, 1, h, w]).to(self.device)
@@ -374,9 +357,6 @@ class Trainer(object):
                 artifact.add_file(model_path)
                 
                 self.wandb_run.log_artifact(artifact)
-            
-            #torch.save(model_state_dic, os.path.join(self.save_dir, 'best_model_{}.pth'.format(self.best_count)))
-            #self.best_count += 1
 
 
 def tensor_divideByfactor(img_tensor, factor=32):

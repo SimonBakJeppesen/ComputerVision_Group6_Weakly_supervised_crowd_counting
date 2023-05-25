@@ -93,9 +93,6 @@ def main(args):
     print(' * best MAE {mae:.3f} '.format(mae=args['best_pred']))
 
 
-
-
-
 def pre_data(train_list, args, train):
     print("Pre_load dataset ......")
     data_keys = {}

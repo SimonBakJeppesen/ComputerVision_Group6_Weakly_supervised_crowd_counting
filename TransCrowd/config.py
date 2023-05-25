@@ -4,18 +4,15 @@ parser = argparse.ArgumentParser(description='TransCrowd')
 
 # Data specifications
 parser.add_argument('--dataset', type=str, default='JHU', #UCF_QNRF
-                    help='choice train dataset')
-
+                    help='choice train dataset, JHU, ShanghaiA')
 parser.add_argument('--save_path', type=str, default='./save_file/JHU',
                     help='save checkpoint directory')
-
 parser.add_argument('--workers', type=int, default=16,
                     help='load data workers')
 parser.add_argument('--print_freq', type=int, default=200,
                     help='print frequency')
 parser.add_argument('--start_epoch', type=int, default=0,
                     help='start epoch for training')
-
 # Model specifications
 parser.add_argument('--test_dataset', type=str, default='JHU',
                     help='choice train dataset')
@@ -42,7 +39,7 @@ parser.add_argument('--gpu_id', type=str, default='1',
                     help='gpu id')
 
 # nni config
-parser.add_argument('--lr', type=float, default=(0.25/4) * 1e-5,
+parser.add_argument('--lr', type=float, default=1e-5,
                     help='learning rate')
 parser.add_argument('--model_type', type=str, default='token',
                     help='model type')

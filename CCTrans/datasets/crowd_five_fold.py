@@ -215,7 +215,6 @@ class Crowd_sh_pre_crop(Base):
             #return self.trans(img), torch.from_numpy(gt_count.copy()).float()
             img = self.trans(img)
             return img, gt_count, name
-            ### Skal laves om så både test_images_patch og train kan kalde.
         
     def train_transform(self, img, keypoints):
         if random.random() > 0.5:

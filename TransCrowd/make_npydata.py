@@ -4,8 +4,6 @@ import numpy as np
 if not os.path.exists('./npydata'):
     os.makedirs('./npydata')
 
-    
-############################## JHU++ dataset (Lucas)
 '''please set your dataset path'''
 try:
     JHU_train_path = '/home/cv06f23/Dataset/jhu_crowd_v2.0/jhu_crowd_v2.0/train_data/images/'
@@ -38,10 +36,7 @@ try:
     print("generate JHU image list successfully", len(train_list), len(test_list))
 except:
     print("The JHU dataset path is wrong. Please check you path.")
-#############################
 
-
-############################## QNRF dataset (simon)
 '''please set your dataset path'''
 try:
     UCF_QNRF_train_path = '/home/cv06f23/Dataset/UCF-QNRF/UCF_QNRF_ECCV18/train_data/images/'
@@ -65,7 +60,6 @@ try:
     print("generate UCF_QNRF image list successfully", len(train_list), len(test_list))
 except:
     print("The UCF_QNRF dataset path is wrong. Please check you path.")
-#############################
 
 
 try:
@@ -90,7 +84,6 @@ try:
     print("generate ShanghaiA image list successfully", len(train_list), len(test_list))
 except:
     print("The ShanghaiA dataset path is wrong. Please check you path.")
-
 
 try:
     shanghaiBtrain_path = '/home/cv06f23/Dataset/ShanghaiTech/ShanghaiTech/part_B/train_data/images_crop/'

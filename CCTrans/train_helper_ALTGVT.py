@@ -27,7 +27,6 @@ def train_collate(batch):
     points = transposed_batch[
         1
     ]  # the number of points is not fixed, keep it as a list of tensor
-    #gt_discretes = torch.stack(transposed_batch[2], 0)
     return images, points
 
 
@@ -41,11 +40,6 @@ class Trainer(object):
             "ALTGVT/{}_input-{}".format(
                 args.run_name,
                 args.crop_size,
-                #args.wot,
-                #args.wtv,
-                #args.reg,
-                #args.num_of_iter_in_ot,
-                #args.norm_cood,
             )
         )
 
@@ -121,7 +115,7 @@ class Trainer(object):
         self.optimizer = optim.AdamW(
             self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
         )
-         #OBS!!!! Implement scheduler here
+        #OBS!!!! Implement scheduler here
         #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[100, 200, 300, 400], gamma=0.8, last_epoch=-1)
        
         self.start_epoch = 0
@@ -149,20 +143,8 @@ class Trainer(object):
         else:
             self.logger.info("random initialization")
         
-        '''
-        self.ot_loss = OT_Loss(
-            args.crop_size,
-            downsample_ratio,
-            args.norm_cood,
-            self.device,
-            args.num_of_iter_in_ot,
-            args.reg,
-        )
-        '''
 
-        #self.tv_loss = nn.L1Loss(reduction="none").to(self.device)          #
         self.mse = nn.MSELoss().to(self.device)
-        #self.mae = nn.L1Loss().to(self.device)                              # 
         self.smoothL1 = nn.SmoothL1Loss(beta=self.args.beta).to(self.device)
         self.save_list = Save_Handle(max_num=1)
         self.best_mae = np.inf
@@ -213,7 +195,7 @@ class Trainer(object):
                 )  
                 epoch_count_loss.update(count_loss.item(), N)
                 
-                loss = count_loss #+ ot_loss + tv_loss   # add this again for original code
+                loss = count_loss 
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -234,7 +216,6 @@ class Trainer(object):
                     {
                         "train/TOTAL_loss": loss,
                         "train/count_loss": count_loss,
-                        #"train/tv_loss": tv_loss,
                         "train/pred_err": pred_err,
                     },
                     step=self.epoch,
@@ -245,11 +226,8 @@ class Trainer(object):
             "Count Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec".format(
                 self.epoch,
                 epoch_loss.get_avg(),
-                #epoch_ot_loss.get_avg(),
                 epoch_wd.get_avg(),
-                #epoch_ot_obj_value.get_avg(),
                 epoch_count_loss.get_avg(),
-                #epoch_tv_loss.get_avg(),
                 np.sqrt(epoch_mse.get_avg()),
                 epoch_mae.get_avg(),
                 time.time() - epoch_start,
@@ -260,16 +238,6 @@ class Trainer(object):
         model_state_dic = self.model.state_dict()
         save_path = os.path.join(
             self.save_dir, "{}_ckpt.tar".format(self.epoch))
-        '''
-        torch.save(
-            {
-                "epoch": self.epoch,
-                "optimizer_state_dict": self.optimizer.state_dict(),
-                "model_state_dict": model_state_dic,
-            },
-            save_path,
-        )
-        '''
         self.save_list.append(save_path)
 
     def val_epoch(self):
@@ -348,7 +316,7 @@ class Trainer(object):
         wandb.log({"val/MSE": mse, "val/MAE": mae}, step=self.epoch)
 
         model_state_dic = self.model.state_dict()
-        # if (2.0 * mse + mae) < (2.0 * self.best_mse + self.best_mae):
+
         print("Comaprison", mae,  self.best_mae)
         if mae < self.best_mae:
             self.best_mse = mse

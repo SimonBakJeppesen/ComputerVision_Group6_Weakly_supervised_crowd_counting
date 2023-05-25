@@ -2,9 +2,6 @@ import argparse
 import torch
 import os
 import numpy as np
-import datasets.crowd_five_fold as crowd
-# else
-#import datasets.crowd as crowd
 from Networks import ALTGVT
 import torch.nn.functional as F
 
@@ -51,13 +48,12 @@ def test(args, isSave = True):
     elif args.dataset.lower() == 'nwpu':
         dataset = crowd.Crowd_nwpu(os.path.join(data_path, 'val'), crop_size, 8, method='val')
     elif args.dataset.lower() == 'sha' or args.dataset.lower() == 'shb':
+        import datasets.crowd_five_fold as crowd
         dataset = crowd.Crowd_sh(os.path.join(data_path, 'test_data'), crop_size, 8, method='val')
-        # preCrop
-    elif args.dataset.lower() == 'sha_precrop':
-        dataset = crowd.Crowd_sh_pre_crop(os.path.join(data_path, 'test_data'), crop_size, 8, method='val')
     elif args.dataset.lower() == 'custom':
         dataset = crowd.CustomDataset(data_path, crop_size, downsample_ratio=8, method='test')
     elif args.dataset.lower() == 'jhu':
+        import datasets.crowd as crowd
         dataset = crowd.Crowd_jhu(os.path.join(data_path, 'test_data_CC'), crop_size, 8, method='test')
     else:
         raise NotImplementedError
