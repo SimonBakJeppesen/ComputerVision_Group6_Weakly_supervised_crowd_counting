@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument('--device', default='1', help='assign device')
     parser.add_argument('--num-workers', type=int, default=16,
                         help='the num of training process')
-    parser.add_argument('--crop-size', type=int, default= 256,
+    parser.add_argument('--crop-size', type=int, default= 512,
                         help='the crop size of the train image')
     parser.add_argument('--beta', type=float, default=1.0, help='Beta value of the smooth L1 loss')
 

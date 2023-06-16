@@ -83,6 +83,8 @@ def vis(args):
     
     Img_data = cv2.imread(image_path)
     
+    kpoint = np.zeros((Img_data.shape[0], Img_data.shape[1]))
+    
     if mat.ndim > 1:
         Gt_data = mat[:,:2]
     
@@ -99,13 +101,11 @@ def vis(args):
             Img_data = cv2.resize(Img_data, (0, 0), fx=rate_2, fy=rate_1)
             Gt_data[:, 0] = Gt_data[:, 0] * rate_2
             Gt_data[:, 1] = Gt_data[:, 1] * rate_1
-      
-    kpoint = np.zeros((Img_data.shape[0], Img_data.shape[1]))
         
-    for count in range(0, len(Gt_data)):
-        if int(Gt_data[count][1]) < Img_data.shape[0] and int(Gt_data[count][0]) < Img_data.shape[1]:
-            kpoint[int(Gt_data[count][1]), int(Gt_data[count][0])] = 1
-    
+        for count in range(0, len(Gt_data)):
+            if int(Gt_data[count][1]) < Img_data.shape[0] and int(Gt_data[count][0]) < Img_data.shape[1]:
+                kpoint[int(Gt_data[count][1]), int(Gt_data[count][0])] = 1
+
     ## gausian kernal
     t = np.linspace(-10, 10, 30)
     bump = np.exp(-0.1*t**2)

@@ -19,21 +19,20 @@ class Regression(nn.Module):
         super(Regression, self).__init__()
 
         self.v1 = nn.Sequential(
-            # nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True),
-            nn.Conv2d(256, 256, 3, padding=1, dilation=1),
+            #nn.Conv2d(256, 256, 3, padding=1, dilation=1),
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True)
         )
 
         self.v2 = nn.Sequential(
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-            nn.Conv2d(512, 256, 3, padding=1, dilation=1),
+            nn.Conv2d(512, 256, 1, padding=0, dilation=1),                   ## change to 1x1 convelution, and padding 0
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True)
         )
         self.v3 = nn.Sequential(
             nn.Upsample(scale_factor=4, mode='bilinear', align_corners=True),
-            nn.Conv2d(1024, 256, 3, padding=1, dilation=1),
+            nn.Conv2d(1024, 256, 1, padding=0, dilation=1),                 ## change to 1x1 convelution, and padding 0
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True)
         )
@@ -67,7 +66,7 @@ class Regression(nn.Module):
             nn.ReLU(inplace=True)
         )
         self.res = nn.Sequential(
-            nn.Conv2d(384, 64, 3, padding=1, dilation=1),
+            nn.Conv2d(384, 64, 3, padding=1, dilation=1), ###########
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.Dropout(0.1),   #########
@@ -97,7 +96,7 @@ class Regression(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)           
+                nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
 class Mlp(nn.Module):
@@ -141,6 +140,8 @@ class GroupAttention(nn.Module):
 
     def forward(self, x, H, W):
         B, N, C = x.shape
+        #print('Start LSA')
+        #print(x.shape)
         h_group, w_group = H // self.ws, W // self.ws
 
         total_groups = h_group * w_group
@@ -185,6 +186,8 @@ class Attention(nn.Module):
             self.norm = nn.LayerNorm(dim)
 
     def forward(self, x, H, W):
+        #print('Start GSA')
+        #print(x.shape)
         B, N, C = x.shape
         q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
@@ -282,12 +285,15 @@ class PatchEmbed(nn.Module):
         self.norm = nn.LayerNorm(embed_dim)
 
     def forward(self, x):
+       # print('Image to Patch Embedding')
+        #print(x.shape)
         B, C, H, W = x.shape
 
         x = self.proj(x).flatten(2).transpose(1, 2)
         x = self.norm(x)
         H, W = H // self.patch_size[0], W // self.patch_size[1]
-
+      #  print(x.shape)
+      #  print('Image to Patch Embedding SLUT')
         return x, (H, W)
 
 
@@ -437,7 +443,7 @@ class CPVTV2(PyramidVisionTransformer):
         self.pos_block = nn.ModuleList(
             [PosCNN(embed_dim, embed_dim) for embed_dim in embed_dims]
         )
-       
+
         self.regression = Regression()
         self.apply(self._init_weights)
 
@@ -505,7 +511,7 @@ class ALTGVT(PCPVT):
     alias Twins-SVT
     """
     def __init__(self, img_size=224, patch_size=4, in_chans=3, num_classes=1000, embed_dims=[64, 128, 256],
-                 num_heads=[1, 2, 4], mlp_ratios=[4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,     ###############      
+                 num_heads=[1, 2, 4], mlp_ratios=[4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
                  attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
                  depths=[4, 4, 4], sr_ratios=[4, 2, 1], block_cls=GroupBlock, wss=[7, 7, 7]):
         super(ALTGVT, self).__init__(img_size, patch_size, in_chans, num_classes, embed_dims, num_heads,
@@ -517,7 +523,6 @@ class ALTGVT(PCPVT):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
         cur = 0
         self.blocks = nn.ModuleList()
-      
         for k in range(len(depths)):
             _block = nn.ModuleList([block_cls(
                 dim=embed_dims[k], num_heads=num_heads[k], mlp_ratio=mlp_ratios[k], qkv_bias=qkv_bias,

@@ -28,6 +28,10 @@ class Base(data.Dataset):
         self.dc_size = self.c_size // self.d_ratio
         self.trans = transforms.Compose([
             transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+        self.trans_gray = transforms.Compose([
+            transforms.ToTensor(),
             transforms.Grayscale(num_output_channels=3),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
@@ -177,10 +181,13 @@ class Crowd_sh(Base):
         else:
             if random.random() > 0.5:
                 img = F.hflip(img)
-                gt_discrete = np.fliplr(gt_discrete)
+                gt_discrete = np.fliplr(gt_discrete)        
         gt_discrete = np.expand_dims(gt_discrete, 0)
-       
-        return self.trans(img), len(keypoints)
+         
+        if random.random() > 0.5:
+            return self.trans_gray(img), len(keypoints)
+        else:
+            return self.trans(img), len(keypoints)
     
 
 # for pre crop images with ground true .h5 files           ##################################
