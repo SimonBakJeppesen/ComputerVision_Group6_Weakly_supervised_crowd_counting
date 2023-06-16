@@ -126,7 +126,7 @@ class Trainer(object):
             self.best_mse = np.inf
             self.best_count = 0
             
-            if self.fold > 2:
+            if self.fold > 0:
                 self.start_epoch = 0
                 
                 time_str = datetime.strftime(datetime.now(), "%m%d-%H%M%S")

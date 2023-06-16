@@ -66,7 +66,7 @@ class Regression(nn.Module):
             nn.ReLU(inplace=True)
         )
         self.res = nn.Sequential(
-            nn.Conv2d(384, 64, 3, padding=1, dilation=1), ###########
+            nn.Conv2d(384, 64, 1, padding=0, dilation=1), ###########
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.Dropout(0.1),   #########
